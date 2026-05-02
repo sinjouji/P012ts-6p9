@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📚 読書ログ</title>
+<style>
+:root{--accent:#1D9E75;--accent-dark:#0F6E56;--accent-bg:#E1F5EE;--accent-text:#085041}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Helvetica Neue',sans-serif;font-size:14px;color:#3d2c24;background:#f5f5f3}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #e0e0d8;background:#fff;flex-wrap:wrap;gap:6px;position:sticky;top:0;z-index:50}
+.logo{font-size:15px;font-weight:600}
+.nav-area{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.nb{background:none;border:none;padding:5px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#666}
+.nb.act{background:#eee;color:#3d2c24;font-weight:500}
+.nb:hover{background:#f0f0ee}
+.view-btn{background:none;border:1px solid #ddd;border-radius:8px;padding:4px 9px;cursor:pointer;font-size:13px;line-height:1}
+.view-btn.act{background:#eee;border-color:#bbb}
+.pg{display:none;padding:14px 16px;background:#f5f5f3;min-height:calc(100vh - 52px)}
+.pg.on{display:block}
+.card{background:#fff;border:1px solid #e5e5e0;border-radius:12px;padding:14px;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:8px}
+.between{justify-content:space-between}
+.wrap{flex-wrap:wrap}
+.btn{background:none;border:1px solid #ccc;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;color:#3d2c24}
+.btn:hover{background:#f0f0ee}
+.btn-pri{background:var(--accent);color:#fff;border:none;padding:7px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
+.btn-pri:hover{background:var(--accent-dark)}
+.btn-sm{padding:4px 8px;font-size:12px}
+.btn-danger{color:#A32D2D;border-color:#F09595}
+.btn-danger:hover{background:#FCEBEB}
+.btn-wish{background:none;border:1px solid #ccc;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px;color:#3d2c24}
+.sinp{border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;color:#3d2c24}
+.chip{display:inline-flex;align-items:center;font-size:12px;padding:4px 10px;border-radius:16px;font-weight:500;cursor:pointer;border:1px solid transparent;white-space:nowrap}
+.chip-on{color:#fff}
+.chip-off{background:none!important;border-color:#ccc!important;color:#555!important}
+.cf{font-size:12px;padding:4px 10px;border-radius:16px;cursor:pointer;border:1px solid #ccc;color:#555;white-space:nowrap;display:inline-flex;align-items:center;user-select:none}
+.cf.mode-and{color:#fff;border-color:transparent}
+.cf.mode-or{color:#fff;outline:2px solid #ffb74d;outline-offset:1px}
+.cf.mode-not{background:#A32D2D!important;color:#fff!important;border-color:#A32D2D!important;text-decoration:line-through}
+.fg{display:flex;flex-wrap:wrap;gap:5px}
+.wbadge{font-size:11px;padding:2px 7px;border-radius:99px;background:#E0E0DA;color:#555550;font-weight:500}
+.cnt{font-size:11px;color:#888;white-space:nowrap}
+.bitem{border:1px solid #e5e5e0;border-radius:12px;padding:10px 14px;cursor:pointer;margin-bottom:7px}
+.bitem.normal{background:#fff}
+.bitem.wish{background:#E8E8E5}
+.bitem:hover{opacity:.82}
+.bt{font-weight:500;font-size:14px;margin-bottom:2px}
+.brow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px}
+.bdate{font-size:12px;color:#888}
+.spine-section{margin-bottom:0}
+.spine-row{display:flex;gap:6px;align-items:flex-end;padding:10px 0 0}
+.shelf-board{height:5px;background:#c8a060;border-radius:2px;margin-bottom:4px}
+.spine-book{display:flex;flex-direction:column;align-items:center;justify-content:space-between;border-radius:3px 5px 5px 3px;cursor:pointer;padding:10px 5px 8px;position:relative;flex-shrink:0;transition:transform .15s,box-shadow .15s;box-shadow:1px 2px 4px rgba(0,0,0,.16)}
+.spine-book:hover{transform:translateY(-5px);box-shadow:2px 6px 12px rgba(0,0,0,.2)}
+.spine-title{writing-mode:vertical-rl;text-orientation:mixed;font-size:12px;font-weight:500;color:#fff;white-space:normal;word-break:break-all;text-shadow:0 1px 2px rgba(0,0,0,.3);flex:1;line-height:1.4;overflow:hidden}
+.spine-fav{font-size:11px;margin-top:4px;flex-shrink:0;writing-mode:vertical-rl;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.spine-wish{position:absolute;inset:0;border-radius:3px 5px 5px 3px;background:repeating-linear-gradient(45deg,rgba(255,255,255,0),rgba(255,255,255,0) 4px,rgba(255,255,255,.12) 4px,rgba(255,255,255,.12) 6px);pointer-events:none}
+.cbar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.clbl{width:36px;font-size:12px;color:#888;text-align:right;flex-shrink:0}
+.cbg{flex:1;height:16px;background:#eee;border-radius:99px;overflow:hidden}
+.cfill{height:100%;border-radius:99px}
+.cval{width:24px;font-size:12px;font-weight:500}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:8px}
+.cal-head{text-align:center;font-size:11px;color:#888;padding:4px 0;font-weight:500}
+.cal-cell{min-height:44px;background:#fafaf8;border-radius:6px;padding:4px;font-size:12px;border:1px solid #f0f0ee}
+.cal-cell.today{border-color:var(--accent);background:#f0faf6}
+.cal-cell.other-month{color:#ccc;background:#f8f8f7}
+.cal-day-num{font-size:11px;color:#888;margin-bottom:2px}
+.cal-count{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer}
+.cal-count:hover{background:var(--accent-dark)}
+.tog{position:relative;width:34px;height:19px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0}
+.tsl{position:absolute;inset:0;background:#ccc;border-radius:99px;cursor:pointer;transition:.2s}
+.tsl:before{content:"";position:absolute;width:15px;height:15px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s}
+.tog input:checked+.tsl{background:var(--accent)}
+.tog input:checked+.tsl:before{transform:translateX(15px)}
+.sitem{background:#fff;border:1px solid #e5e5e0;border-radius:12px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.pal{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.pcol{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+.pcol.sel{border-color:rgba(0,0,0,.45)}
+.divider{height:1px;background:#eee;margin:10px 0}
+.tag-row{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid #eee}
+.tag-row:last-of-type{border-bottom:none}
+.tag-edit-box{background:#f5f5f3;border-radius:10px;padding:10px;margin-bottom:6px}
+.edit-inp{width:100%;border:1px solid #ddd;border-radius:8px;padding:7px 10px;font-size:13px;background:#fff;color:#3d2c24}
+.memo-area{width:100%;border:1px solid #ddd;border-radius:8px;padding:7px 10px;font-size:13px;background:#fff;color:#3d2c24;resize:vertical;min-height:72px;font-family:inherit}
+.memo-disp{font-size:13px;background:#f5f5f3;border-radius:8px;padding:8px 10px;min-height:40px;white-space:pre-wrap;word-break:break-all;line-height:1.6}
+.vb{font-size:11px;padding:3px 8px;border-radius:99px;background:var(--accent-bg);color:var(--accent-text);font-weight:500;cursor:pointer}
+.vb.unread{background:#eee;color:#888}
+.sort-btn{background:none;border:1px solid #ddd;border-radius:8px;padding:4px 8px;cursor:pointer;font-size:11px;color:#888;white-space:nowrap}
+.sort-btn.act{background:#eee;color:#3d2c24;font-weight:500;border-color:#ccc}
+.month-nav{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.mnb{background:none;border:1px solid #ddd;border-radius:8px;padding:3px 12px;cursor:pointer;font-size:15px}
+.mnb:hover{background:#eee}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:200;align-items:flex-start;justify-content:center;padding-top:30px;overflow-y:auto}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:14px;padding:18px;width:420px;max-width:95vw;max-height:85vh;overflow-y:auto;position:relative;margin-bottom:30px}
+.modal-close{position:absolute;top:12px;right:12px;background:none;border:none;cursor:pointer;font-size:20px;color:#888;line-height:1;padding:2px 6px;border-radius:8px}
+.modal-close:hover{background:#eee}
+.mt{font-size:15px;font-weight:600;margin-bottom:14px;padding-right:28px}
+.fr{margin-bottom:10px}
+.fl{font-size:12px;color:#888;margin-bottom:4px}
+.dl{font-size:12px;color:#888;margin-bottom:4px}
+.df{margin-bottom:12px}
+#sync-bar{display:flex;align-items:center;gap:8px;padding:6px 16px;background:#fff8e1;border-bottom:1px solid #ffe082;font-size:12px;color:#7a5800}
+#sync-bar.hidden{display:none}
+.sync-badge{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500;white-space:nowrap}
+.sync-badge.ok{background:var(--accent-bg);color:var(--accent-text)}
+.sync-badge.dirty{background:#FFF8E1;color:#7A5800}
+.sync-badge.loading{background:#e8e8e8;color:#888}
+#loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.9);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:14px;color:#555}
+.spinner{width:32px;height:32px;border:3px solid #ddd;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div id="loading-overlay"><div class="spinner"></div><div>読書ログを読み込んでいます...</div></div>
+
+<!-- 同期バー -->
+<div id="sync-bar" class="hidden">
+  <span id="sync-badge" class="sync-badge ok">✓ 保存済み</span>
+  <span id="sync-msg" style="flex:1"></span>
+  <button class="btn btn-sm" onclick="App.exportJSON()" title="data.jsonをダウンロード">💾 書き出し</button>
+  <button class="btn btn-sm" onclick="App.reloadFromGitHub()" title="GitHubから最新を取得">🔄 再読み込み</button>
+</div>
+
+<div class="topbar">
+  <div class="logo">📚 読書ログ</div>
+  <div class="nav-area" id="nav-area"></div>
+</div>
+
+<div id="pages">
+  <div id="pg-shelf"         class="pg on"></div>
+  <div id="pg-series"        class="pg"></div>
+  <div id="pg-characters"    class="pg"></div>
+  <div id="pg-stats"         class="pg"></div>
+  <div id="pg-settings"      class="pg"></div>
+  <div id="pg-detail"        class="pg"></div>
+  <div id="pg-series-detail" class="pg"></div>
+  <div id="pg-char-detail"   class="pg"></div>
+</div>
+
+<!-- 本を追加 -->
+<div class="modal-bg" id="book-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="App.closeBookModal()">×</button>
+    <div class="mt">本を追加</div>
+    <div class="fr"><div class="fl">タイトル</div><input class="edit-inp" id="m-title" placeholder="例：羊と鋼の森" oninput="App.renderMSeriesSel()"></div>
+    <div class="fr" id="m-date-wrap"><div class="fl">読了日</div><div class="row" style="gap:6px"><input class="edit-inp" id="m-date" type="date" style="flex:1"><button class="btn btn-sm" onclick="document.getElementById('m-date').value=''">クリア</button></div></div>
+    <div class="fr" id="m-tags-wrap"><div class="fl">タグ</div><div id="m-tag-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px"></div><input class="edit-inp" id="m-new-tag-name" placeholder="新しいタグ名..." style="margin-bottom:5px"><div class="pal" id="m-new-tag-pal"></div><button class="btn btn-sm" onclick="App.addTagFromModal()" style="margin-top:5px">タグを追加</button></div>
+    <div class="fr" id="m-fav-wrap"><div class="fl">お気に入り度</div><div id="m-fav-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:3px"></div></div>
+    <div class="fr" id="m-series-wrap"><div class="fl">シリーズ</div><select class="sinp" id="m-series-sel" style="width:100%"><option value="">シリーズに追加（任意）</option></select></div>
+    <div class="fr" id="m-memo-wrap"><div class="fl">メモ</div><textarea class="memo-area" id="m-memo"></textarea></div>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px">
+      <button class="btn-wish" onclick="App.saveBook('wish')">＋WishList</button>
+      <button class="btn-pri" onclick="App.saveBook('normal')">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- シリーズ追加 -->
+<div class="modal-bg" id="series-add-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('series-add-modal').classList.remove('open')">×</button>
+    <div class="mt">シリーズを追加</div>
+    <div class="fr"><div class="fl">シリーズタイトル</div><input class="edit-inp" id="sa-name" oninput="App.renderSABS()"></div>
+    <div class="fr" id="sa-memo-wrap"><div class="fl">メモ</div><textarea class="memo-area" id="sa-memo"></textarea></div>
+    <div class="fr"><div class="fl">本を追加</div>
+      <input class="edit-inp" id="sa-search" placeholder="タイトルで検索..." oninput="App.renderSABS()" style="margin-bottom:6px">
+      <div style="display:flex;gap:6px;margin-bottom:6px;width:100%"><select class="sinp" id="sa-book-sel" style="flex:1;min-width:0"></select><button class="btn btn-sm" style="flex-shrink:0;white-space:nowrap" onclick="App.addBookToNewSeries()">追加</button></div>
+      <div id="sa-book-list"></div>
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn-pri" onclick="App.saveNewSeries()">作成</button></div>
+  </div>
+</div>
+
+<!-- 日別読了 -->
+<div class="modal-bg" id="day-modal">
+  <div class="modal"><button class="modal-close" onclick="document.getElementById('day-modal').classList.remove('open')">×</button><div class="mt" id="day-modal-title"></div><div id="day-modal-list"></div></div>
+</div>
+
+<!-- 登場人物追加 -->
+<div class="modal-bg" id="char-add-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('char-add-modal').classList.remove('open')">×</button>
+    <div class="mt">登場人物を追加</div>
+    <div class="fr"><div class="fl">名前</div><input class="edit-inp" id="ca-name" placeholder="例：鬼塚英吉"></div>
+    <div class="fr"><div class="fl">あだ名・別名</div><input class="edit-inp" id="ca-alias" placeholder="例：GTO（複数はカンマ区切り）"></div>
+    <div class="fr"><div class="fl">シリーズと関連付け</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;width:100%">
+        <input class="edit-inp" id="ca-ser-search" placeholder="シリーズ名で検索..." oninput="App.renderCASerSelect()" style="flex:1;min-width:0">
+        <select class="sinp" id="ca-ser-sel" style="flex:1;min-width:0"></select>
+        <button class="btn btn-sm" style="flex-shrink:0;white-space:nowrap" onclick="App.addCASerEntry()">追加</button>
+      </div>
+      <div id="ca-ser-list"></div>
+    </div>
+    <div class="fr"><div class="fl">メモ</div><textarea class="memo-area" id="ca-memo"></textarea></div>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn-pri" onclick="App.saveNewChar()">追加</button></div>
+  </div>
+</div>
+
+<!-- data.json インポート用（非表示） -->
+<input type="file" id="import-file" accept=".json" style="display:none" onchange="App.importJSON(this)">
+
+<script src="app.js"></script>
+</body>
+</html>
