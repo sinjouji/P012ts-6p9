@@ -217,6 +217,16 @@ color:#555
 <!-- data.json インポート用（非表示） -->
 <input type="file" id="import-file" accept=".json" style="display:none" onchange="App.importJSON(this)">
 
+<!-- ★ app.js を読み込む前に、DOM が完全に準備できるまで待つ -->
+<script>
+  // app.js が実行される前に、DOMContentLoaded を待つ
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      // ここで app.js が実行される
+    });
+  }
+</script>
+
 <script src="app.js"></script>
 </body>
 </html>
