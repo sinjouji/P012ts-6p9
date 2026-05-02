@@ -41,13 +41,13 @@ async function loadData() {
     const res = await fetch(RAW_URL + "?t=" + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
-    
+
     books = d.books || [];
     tagMaster = d.tagMaster || [];
     series = d.series || [];
     characters = d.characters || [];
     features = d.features || defFeats();
-    
+
     saveToLocal();
     isDirty = false;
     setSyncBadge('ok', 'GitHubから読み込み完了');
