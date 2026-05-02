@@ -91,7 +91,6 @@ function saveFilterState() {
 
 // ---- データ読み込み ----
 async function loadData() {
-  // まずlocalStorageから復元
   try {
     const local = localStorage.getItem(LS_KEY);
     if (local) {
@@ -104,7 +103,6 @@ async function loadData() {
     }
   } catch(e) { features = defFeats(); }
 
-  // GitHubからも取得を試みる
   const { RAW_URL } = getCfg();
   if (RAW_URL) {
     await reloadFromGitHub(true); // silent=true
@@ -113,10 +111,22 @@ async function loadData() {
     document.getElementById('sync-bar').classList.remove('hidden');
   }
   
-  // ★ ここに追加：どちらの場合でもローディング画面を消す
-  document.getElementById('loading-overlay').style.display = 'none';
+  // ★ 絶対確実にローディング画面を消す
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
 }
 
+async function init() {
+  initAccent();
+  await loadData();
+  
+  // ★ loadData完了後に確実にUI初期化
+  renderNav();
+  document.getElementById('nb-shelf')?.classList.add('act');
+  renderShelf();
+}
 async function reloadFromGitHub(silent = false) {
   const { RAW_URL } = getCfg();
   if (!RAW_URL) {
