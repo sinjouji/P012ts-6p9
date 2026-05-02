@@ -527,10 +527,3 @@ return {
 };
 
 })(); // end App IIFE
-
-// ★ DOM 完全ロード後に app を起動
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    App.init();
-  });
-}
