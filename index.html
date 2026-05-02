@@ -219,13 +219,11 @@ color:#555
 
 <script src="app.js"></script>
 <script>
-  // DOM 完全ロード後に app を起動
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       App.init();
     });
   } else {
-    // すでにロード済みの場合
     App.init();
   }
 </script>
