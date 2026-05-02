@@ -13,8 +13,8 @@ const App = (() => {
 
 // ---- 設定 (設定ページから変更可) ----
 const getCfg = () => ({
-  RAW_URL: localStorage.getItem('cfg_raw_url') || '',
-  // 例: https://raw.githubusercontent.com/sinjouji/my-b0o0oksd6t6/refs/heads/main/data.json
+  RAW_URL: localStorage.getItem('cfg_raw_url') || 
+  (typeof GITHUB_RAW_URL !== 'undefined' ? GITHUB_RAW_URL : ''),
 });
 
 // ---- パレット・定数 ----
