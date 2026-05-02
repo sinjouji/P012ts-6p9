@@ -533,6 +533,4 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     App.init();
   });
-} else {
-  App.init();
 }
