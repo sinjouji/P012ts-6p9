@@ -109,10 +109,12 @@ async function loadData() {
   if (RAW_URL) {
     await reloadFromGitHub(true); // silent=true
   } else {
-    document.getElementById('loading-overlay').style.display = 'none';
     setSyncBadge('ok', 'GitHub URLを設定ページで設定するとリモートから読み込めます');
     document.getElementById('sync-bar').classList.remove('hidden');
   }
+  
+  // ★ ここに追加：どちらの場合でもローディング画面を消す
+  document.getElementById('loading-overlay').style.display = 'none';
 }
 
 async function reloadFromGitHub(silent = false) {
