@@ -518,5 +518,11 @@ return {
 
 })(); // end App IIFE
 
-// アプリ起動
-App.init();
+// ★ DOM 完全ロード後に app を起動
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    App.init();
+  });
+} else {
+  App.init();
+}
