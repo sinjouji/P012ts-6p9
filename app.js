@@ -14,7 +14,7 @@ const App = (() => {
 // ---- 設定 (設定ページから変更可) ----
 const getCfg = () => ({
   RAW_URL: localStorage.getItem('cfg_raw_url') || '',
-  // 例: https://raw.githubusercontent.com/yourname/reading-log/main/data.json
+  // 例: https://raw.githubusercontent.com/sinjouji/my-b0o0oksd6t6/refs/heads/main/data.json
 });
 
 // ---- パレット・定数 ----
