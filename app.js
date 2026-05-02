@@ -37,7 +37,8 @@ async function loadData() {
 
   // GitHubから取得
   try {
-    const res = await fetch(DATA_URL + "?t=" + Date.now());
+    const RAW_URL = getCfg().RAW_URL;
+    const res = await fetch(RAW_URL + "?t=" + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
     
