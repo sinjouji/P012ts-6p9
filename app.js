@@ -133,34 +133,44 @@ async function init() {
   
 async function reloadFromGitHub(silent = false) {
   const { RAW_URL } = getCfg();
+  console.log('reloadFromGitHub called - RAW_URL:', RAW_URL); // ★ デバッグ
+  
   if (!RAW_URL) {
+    console.warn('No RAW_URL configured'); // ★ デバッグ
     if (!silent) alert('設定ページでGitHubのraw URLを設定してください。');
     return;
   }
+  
   setSyncBadge('loading', 'GitHubから読み込み中...');
   document.getElementById('sync-bar').classList.remove('hidden');
+  
   try {
+    console.log('Fetching from:', RAW_URL + '?t=' + Date.now()); // ★ デバッグ
     const res = await fetch(RAW_URL + '?t=' + Date.now());
+    console.log('Fetch response status:', res.status); // ★ デバッグ
+    
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    
     const d = await res.json();
+    console.log('JSON parsed successfully:', d); // ★ デバッグ
+    
     books = d.books || []; tagMaster = d.tagMaster || [];
     series = d.series || []; characters = d.characters || [];
     features = d.features || defFeats();
+    
     saveToLocal();
     isDirty = false;
     setSyncBadge('ok', 'GitHubから読み込み完了');
     if (!silent) { renderNav(); renderShelf(); }
   } catch(e) {
-    console.error('GitHub読み込みエラー:', e);  // ★ 追加
+    console.error('GitHub fetch error:', e); // ★ デバッグ
     setSyncBadge('dirty', 'GitHubからの読み込み失敗: ' + e.message);
     if (!silent) alert('GitHubからの読み込みに失敗しました。\nURLを確認してください。\n' + e.message);
   } finally {
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) {
-      overlay.style.display = 'none';
-    }
+    document.getElementById('loading-overlay').style.display = 'none';
   }
 }
+  
 // ---- JSON書き出し（ダウンロード） ----
 function exportJSON() {
   const data = { books, tagMaster, series, characters, features };
