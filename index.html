@@ -218,14 +218,5 @@ color:#555
 <input type="file" id="import-file" accept=".json" style="display:none" onchange="App.importJSON(this)">
 
 <script src="app.js"></script>
-<script>
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      App.init();
-    });
-  } else {
-    App.init();
-  }
-</script>
 </body>
 </html>
