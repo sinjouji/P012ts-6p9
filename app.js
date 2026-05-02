@@ -9,14 +9,61 @@
 //  ・再読み込み: 「🔄 再読み込み」でGitHubから最新データを取得
 // ============================================================
 
+// ---- 設定 ----
+const DATA_URL = "https://raw.githubusercontent.com/sinjouji/my-b0o0oksd6t6/main/data.json";
+
+const getCfg = () => ({
+  RAW_URL: localStorage.getItem('cfg_raw_url') || DATA_URL,
+});
+
+// ---- データ読み込み ----
+async function loadData() {
+  // localStorageから復元
+  try {
+    const local = localStorage.getItem(LS_KEY);
+    if (local) {
+      const d = JSON.parse(local);
+      books = d.books || [];
+      tagMaster = d.tagMaster || [];
+      series = d.series || [];
+      characters = d.characters || [];
+      features = d.features || defFeats();
+    } else {
+      features = defFeats();
+    }
+  } catch(e) {
+    features = defFeats();
+  }
+
+  // GitHubから取得
+  try {
+    const res = await fetch(DATA_URL + "?t=" + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    
+    books = d.books || [];
+    tagMaster = d.tagMaster || [];
+    series = d.series || [];
+    characters = d.characters || [];
+    features = d.features || defFeats();
+    
+    saveToLocal();
+    isDirty = false;
+    setSyncBadge('ok', 'GitHubから読み込み完了');
+  } catch(e) {
+    console.error('データ読み込みエラー:', e);
+    setSyncBadge('dirty', 'データ読み込み失敗: ' + e.message);
+  } finally {
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('sync-bar').classList.remove('hidden');
+  }
+}
+
+
 const App = (() => {
 
 // ---- 設定 (設定ページから変更可) ----
 // app.js の最初の設定部分
-const getCfg = () => ({
-  RAW_URL: localStorage.getItem('cfg_raw_url') || 'https://raw.githubusercontent.com/sinjouji/my-b0o0oksd6t6/main/data.json',
-  // 例: https://raw.githubusercontent.com/sinjouji/my-b0o0oksd6t6/main/data.json
-});
   
 // ---- パレット・定数 ----
 const PALETTE = [
@@ -90,27 +137,6 @@ function saveFilterState() {
   try { localStorage.setItem('filters', JSON.stringify({ tagFilterModes, aTy, aFv, sK, sD })); } catch(e) {}
 }
 
-// ---- データ読み込み ----
-async function loadData() {
-  try {
-    const local = localStorage.getItem(LS_KEY);
-    if (local) {
-      const d = JSON.parse(local);
-      books = d.books || []; tagMaster = d.tagMaster || [];
-      series = d.series || []; characters = d.characters || [];
-      features = d.features || defFeats();
-    } else {
-      features = defFeats();
-    }
-  } catch(e) { features = defFeats(); }
-
-  const { RAW_URL } = getCfg();
-  if (RAW_URL) {
-    await reloadFromGitHub(true); // silent=true
-  } else {
-    setSyncBadge('ok', 'GitHub URLを設定ページで設定するとリモートから読み込めます');
-    document.getElementById('sync-bar').classList.remove('hidden');
-  }
   
   // ★ 絶対確実にローディング画面を消す
   const overlay = document.getElementById('loading-overlay');
@@ -130,46 +156,7 @@ async function init() {
 }
 
 
-  
-async function reloadFromGitHub(silent = false) {
-  const { RAW_URL } = getCfg();
-  console.log('reloadFromGitHub called - RAW_URL:', RAW_URL); // ★ デバッグ
-  
-  if (!RAW_URL) {
-    console.warn('No RAW_URL configured'); // ★ デバッグ
-    if (!silent) alert('設定ページでGitHubのraw URLを設定してください。');
-    return;
-  }
-  
-  setSyncBadge('loading', 'GitHubから読み込み中...');
-  document.getElementById('sync-bar').classList.remove('hidden');
-  
-  try {
-    console.log('Fetching from:', RAW_URL + '?t=' + Date.now()); // ★ デバッグ
-    const res = await fetch(RAW_URL + '?t=' + Date.now());
-    console.log('Fetch response status:', res.status); // ★ デバッグ
-    
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    
-    const d = await res.json();
-    console.log('JSON parsed successfully:', d); // ★ デバッグ
-    
-    books = d.books || []; tagMaster = d.tagMaster || [];
-    series = d.series || []; characters = d.characters || [];
-    features = d.features || defFeats();
-    
-    saveToLocal();
-    isDirty = false;
-    setSyncBadge('ok', 'GitHubから読み込み完了');
-    if (!silent) { renderNav(); renderShelf(); }
-  } catch(e) {
-    console.error('GitHub fetch error:', e); // ★ デバッグ
-    setSyncBadge('dirty', 'GitHubからの読み込み失敗: ' + e.message);
-    if (!silent) alert('GitHubからの読み込みに失敗しました。\nURLを確認してください。\n' + e.message);
-  } finally {
-    document.getElementById('loading-overlay').style.display = 'none';
-  }
-}
+
   
 // ---- JSON書き出し（ダウンロード） ----
 function exportJSON() {
@@ -423,18 +410,11 @@ function openDetailFromDay(id){document.getElementById('day-modal').classList.re
 // ---- 設定 ----
 function renderSettings(){
   const accentIdx=parseInt(localStorage.getItem('accentIdx')||'0');
-  const rawUrl=getCfg().RAW_URL;
   document.getElementById('pg-settings').innerHTML=`
   <div style="font-size:15px;font-weight:600;margin-bottom:12px">機能のオン／オフ</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">${features.map((f,i)=>`<div class="sitem"><div><div style="font-size:13px;font-weight:500;margin-bottom:2px">${f.name}</div><div style="font-size:11px;color:#888">${f.desc}</div></div><label class="tog"><input type="checkbox" ${f.on?'checked':''} onchange="App.togFeat(${i},this.checked)"><span class="tsl"></span></label></div>`).join('')}</div>
 
-  <div style="font-size:15px;font-weight:600;margin-bottom:10px">GitHub同期設定</div>
-  <div class="card" style="margin-bottom:10px">
-    <div style="font-size:12px;color:#888;margin-bottom:8px">パブリックリポジトリのdata.jsonへのraw URLを設定してください。<br>例: <code>https://raw.githubusercontent.com/ユーザー名/reading-log/main/data.json</code></div>
-    <div class="fr"><div class="fl">GitHub raw URL</div><input class="edit-inp" id="cfg-raw" value="${rawUrl}" placeholder="https://raw.githubusercontent.com/..."></div>
-    <div class="row" style="gap:8px;flex-wrap:wrap">
-      <button class="btn-pri btn-sm" onclick="App.saveRawUrl()">URLを保存</button>
-      <button class="btn btn-sm" onclick="App.reloadFromGitHub()">🔄 今すぐ再読み込み</button>
+      <button class="btn btn-sm" onclick="loadData()">🔄 今すぐ再読み込み</button>
     </div>
   </div>
   <div class="card" style="margin-bottom:10px;background:#fffbf0;border-color:#ffe082">
@@ -463,7 +443,7 @@ function renderSettings(){
   <div class="card" id="tag-card"></div>`;
   renderTagCard();
 }
-function saveRawUrl(){const v=document.getElementById('cfg-raw').value.trim();localStorage.setItem('cfg_raw_url',v);setSyncBadge('ok','URLを保存しました');if(v)reloadFromGitHub();}
+
 function togFeat(i,v){features[i].on=v;renderNav();renderSettings();markDirty();}
 function setSpineGradMode(m){spineGradMode=m;localStorage.setItem('spineGradMode',m);renderSettings();}
 function applyAccent(idx){const t=ACCENT_THEMES[idx];if(!t)return;const r=document.documentElement.style;r.setProperty('--accent',t.accent);r.setProperty('--accent-dark',t.dark);r.setProperty('--accent-bg',t.bg);r.setProperty('--accent-text',t.text);localStorage.setItem('accentIdx',String(idx));const mcBody=document.getElementById('mc-body');if(mcBody)renderMC();}
@@ -516,12 +496,12 @@ return {
   togCDME, saveCDMemo, delChar, setCharSort,
   renderMC, calPrev, calNext, openDayModal, openDetailFromDay,
   renderSettings, togFeat, setSpineGradMode, applyAccent,
-  cycleTagChipOrder, saveRawUrl,
+  cycleTagChipOrder, 
   showAddTag, hideAddTag, commitAddTag, startET, cancelET, commitET,
   delTag, renderTagAddPal, renderTagEditPal,
   openBookModal, closeBookModal, renderMSeriesSel,
   renderMTC, togMT, renderMFC, renderMNP, addTagFromModal, saveBook,
-  exportJSON, importJSON, reloadFromGitHub,
+  exportJSON, importJSON,
   get prevPg() { return prevPg; },
   init,
 };
