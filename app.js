@@ -127,20 +127,21 @@ async function init() {
   document.getElementById('nb-shelf')?.classList.add('act');
   renderShelf();
 }
+
+
+  
 async function reloadFromGitHub(silent = false) {
   const { RAW_URL } = getCfg();
   if (!RAW_URL) {
-    alert('設定ページでGitHubのraw URLを設定してください。');
+    if (!silent) alert('設定ページでGitHubのraw URLを設定してください。');
     return;
   }
   setSyncBadge('loading', 'GitHubから読み込み中...');
   document.getElementById('sync-bar').classList.remove('hidden');
   try {
-    // キャッシュ回避のためタイムスタンプを付加
     const res = await fetch(RAW_URL + '?t=' + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
-    // GitHubのデータで上書き（最新が正）
     books = d.books || []; tagMaster = d.tagMaster || [];
     series = d.series || []; characters = d.characters || [];
     features = d.features || defFeats();
@@ -149,13 +150,16 @@ async function reloadFromGitHub(silent = false) {
     setSyncBadge('ok', 'GitHubから読み込み完了');
     if (!silent) { renderNav(); renderShelf(); }
   } catch(e) {
+    console.error('GitHub読み込みエラー:', e);  // ★ 追加
     setSyncBadge('dirty', 'GitHubからの読み込み失敗: ' + e.message);
     if (!silent) alert('GitHubからの読み込みに失敗しました。\nURLを確認してください。\n' + e.message);
   } finally {
-    document.getElementById('loading-overlay').style.display = 'none';
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
   }
 }
-
 // ---- JSON書き出し（ダウンロード） ----
 function exportJSON() {
   const data = { books, tagMaster, series, characters, features };
