@@ -9,63 +9,11 @@
 //  ・再読み込み: 「🔄 再読み込み」でGitHubから最新データを取得
 // ============================================================
 
-// ---- 設定 ----
-const DATA_URL = "https://raw.githubusercontent.com/sinjouji/my-b0o0oksd6t6/main/data.json";
-
-const getCfg = () => ({
-  RAW_URL: localStorage.getItem('cfg_raw_url') || DATA_URL,
-});
-
-// ---- データ読み込み ----
-async function loadData() {
-  // localStorageから復元
-  try {
-    const local = localStorage.getItem(LS_KEY);
-    if (local) {
-      const d = JSON.parse(local);
-      books = d.books || [];
-      tagMaster = d.tagMaster || [];
-      series = d.series || [];
-      characters = d.characters || [];
-      features = d.features || defFeats();
-    } else {
-      features = defFeats();
-    }
-  } catch(e) {
-    features = defFeats();
-  }
-
-  // GitHubから取得
-  try {
-    const RAW_URL = getCfg().RAW_URL;
-    const res = await fetch(RAW_URL + "?t=" + Date.now());
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const d = await res.json();
-
-    books = d.books || [];
-    tagMaster = d.tagMaster || [];
-    series = d.series || [];
-    characters = d.characters || [];
-    features = d.features || defFeats();
-
-    saveToLocal();
-    isDirty = false;
-    setSyncBadge('ok', 'GitHubから読み込み完了');
-  } catch(e) {
-    console.error('データ読み込みエラー:', e);
-    setSyncBadge('dirty', 'データ読み込み失敗: ' + e.message);
-  } finally {
-    document.getElementById('loading-overlay').style.display = 'none';
-    document.getElementById('sync-bar').classList.remove('hidden');
-  }
-}
-
-
 const App = (() => {
 
-// ---- 設定 (設定ページから変更可) ----
-// app.js の最初の設定部分
-  
+// ---- GitHub raw URL（固定） ----
+const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/sinjouji/my-b0o0oksd6t6/main/data.json';
+
 // ---- パレット・定数 ----
 const PALETTE = [
   '#B52A40','#9E3A5A','#EB6E80','#D2553B','#E8A020','#C4A120',
@@ -138,27 +86,50 @@ function saveFilterState() {
   try { localStorage.setItem('filters', JSON.stringify({ tagFilterModes, aTy, aFv, sK, sD })); } catch(e) {}
 }
 
-  
-  // ★ 絶対確実にローディング画面を消す
-  const overlay = document.getElementById('loading-overlay');
-  if (overlay) {
-    overlay.style.display = 'none';
+// ---- データ読み込み ----
+async function loadData() {
+  // まずlocalStorageから復元（即座に画面表示できるように）
+  try {
+    const local = localStorage.getItem(LS_KEY);
+    if (local) {
+      const d = JSON.parse(local);
+      books = d.books || []; tagMaster = d.tagMaster || [];
+      series = d.series || []; characters = d.characters || [];
+      features = d.features || defFeats();
+    } else {
+      features = defFeats();
+    }
+  } catch(e) { features = defFeats(); }
+
+  // ローディングは必ずここで消す（GitHubの結果に関わらず）
+  document.getElementById('loading-overlay').style.display = 'none';
+  document.getElementById('sync-bar').classList.remove('hidden');
+  renderNav();
+  renderShelf();
+
+  // バックグラウンドでGitHubから最新を取得
+  reloadFromGitHub(true);
+}
+
+async function reloadFromGitHub(silent = false) {
+  setSyncBadge('loading', 'GitHubから読み込み中...');
+  try {
+    const res = await fetch(GITHUB_RAW_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    books = d.books || []; tagMaster = d.tagMaster || [];
+    series = d.series || []; characters = d.characters || [];
+    features = d.features || defFeats();
+    saveToLocal();
+    isDirty = false;
+    setSyncBadge('ok', 'GitHubから読み込み完了');
+    if (!silent) { renderNav(); renderShelf(); }
+  } catch(e) {
+    setSyncBadge('dirty', '読み込み失敗（ローカルデータを使用中）');
+    if (!silent) alert('GitHubからの読み込みに失敗しました。\n' + e.message);
   }
 }
 
-async function init() {
-  initAccent();
-  await loadData();
-  
-  // ★ loadData完了後に確実にUI初期化
-  renderNav();
-  document.getElementById('nb-shelf')?.classList.add('act');
-  renderShelf();
-}
-
-
-
-  
 // ---- JSON書き出し（ダウンロード） ----
 function exportJSON() {
   const data = { books, tagMaster, series, characters, features };
@@ -415,27 +386,24 @@ function renderSettings(){
   <div style="font-size:15px;font-weight:600;margin-bottom:12px">機能のオン／オフ</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">${features.map((f,i)=>`<div class="sitem"><div><div style="font-size:13px;font-weight:500;margin-bottom:2px">${f.name}</div><div style="font-size:11px;color:#888">${f.desc}</div></div><label class="tog"><input type="checkbox" ${f.on?'checked':''} onchange="App.togFeat(${i},this.checked)"><span class="tsl"></span></label></div>`).join('')}</div>
 
-      <button class="btn btn-sm" onclick="loadData()">🔄 今すぐ再読み込み</button>
-    </div>
-  </div>
+  <div style="font-size:15px;font-weight:600;margin-bottom:10px">データ管理</div>
   <div class="card" style="margin-bottom:10px;background:#fffbf0;border-color:#ffe082">
-    <div style="font-size:13px;font-weight:500;margin-bottom:6px">📋 同期の手順</div>
+    <div style="font-size:13px;font-weight:500;margin-bottom:6px">📋 複数端末で使う手順</div>
     <div style="font-size:12px;color:#7a5800;line-height:1.8">
       <b>1.</b> このアプリで本を追加・編集する<br>
-      <b>2.</b> 上部バーの「💾 書き出し」でdata.jsonをダウンロード<br>
+      <b>2.</b>「💾 書き出し」でdata.jsonをダウンロード<br>
       <b>3.</b> GitHubリポジトリにdata.jsonをアップロード（上書き）<br>
-      <b>4.</b> 別端末で「🔄 再読み込み」を押すと最新データを取得
+      <b>4.</b> 別端末で上部バーの「🔄 更新」を押すと最新データを取得
     </div>
   </div>
-  <div class="card" style="margin-bottom:10px">
-    <div style="font-size:13px;font-weight:500;margin-bottom:8px">データ管理</div>
-    <div class="row" style="gap:8px;flex-wrap:wrap">
+  <div class="card" style="margin-bottom:20px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="App.exportJSON()">💾 data.jsonを書き出し</button>
       <button class="btn btn-sm" onclick="document.getElementById('import-file').click()">📂 data.jsonを読み込み</button>
     </div>
   </div>
 
-  <div style="font-size:15px;font-weight:600;margin-bottom:10px;margin-top:20px">表示設定</div>
+  <div style="font-size:15px;font-weight:600;margin-bottom:10px">表示設定</div>
   <div class="card" style="margin-bottom:10px"><div style="font-size:13px;font-weight:500;margin-bottom:10px">アクセントカラー</div><div style="display:flex;gap:10px;flex-wrap:wrap">${ACCENT_THEMES.map((t,i)=>`<div onclick="App.applyAccent(${i});App.renderSettings()" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:32px;height:32px;border-radius:50%;background:${t.accent};border:3px solid ${accentIdx===i?'#333':'transparent'};transition:.15s"></div><div style="font-size:10px;color:#888;white-space:nowrap">${t.name}</div></div>`).join('')}</div></div>
   <div class="card" style="margin-bottom:10px"><div class="row between"><div><div style="font-size:13px;font-weight:500;margin-bottom:2px">背表紙カラーモード</div><div style="font-size:11px;color:#888">${spineGradMode==='grad'?'グラデーション':spineGradMode==='split'?'くっきり':'単色'}</div></div><div style="display:flex;gap:6px"><button class="sort-btn ${spineGradMode==='single'?'act':''}" onclick="App.setSpineGradMode('single')">単色</button><button class="sort-btn ${spineGradMode==='grad'?'act':''}" onclick="App.setSpineGradMode('grad')">グラデーション</button><button class="sort-btn ${spineGradMode==='split'?'act':''}" onclick="App.setSpineGradMode('split')">くっきり</button></div></div></div>
   <div class="card" style="margin-bottom:20px"><div class="row between"><div><div style="font-size:13px;font-weight:500;margin-bottom:2px">絞り込みタグの並び順</div><div style="font-size:11px;color:#888">タップで切り替え</div></div><button class="sort-btn act" onclick="App.cycleTagChipOrder()">${tagChipOrderLabel()}</button></div></div>
@@ -444,7 +412,7 @@ function renderSettings(){
   <div class="card" id="tag-card"></div>`;
   renderTagCard();
 }
-
+function saveRawUrl(){} // 互換性のため残す
 function togFeat(i,v){features[i].on=v;renderNav();renderSettings();markDirty();}
 function setSpineGradMode(m){spineGradMode=m;localStorage.setItem('spineGradMode',m);renderSettings();}
 function applyAccent(idx){const t=ACCENT_THEMES[idx];if(!t)return;const r=document.documentElement.style;r.setProperty('--accent',t.accent);r.setProperty('--accent-dark',t.dark);r.setProperty('--accent-bg',t.bg);r.setProperty('--accent-text',t.text);localStorage.setItem('accentIdx',String(idx));const mcBody=document.getElementById('mc-body');if(mcBody)renderMC();}
@@ -497,14 +465,17 @@ return {
   togCDME, saveCDMemo, delChar, setCharSort,
   renderMC, calPrev, calNext, openDayModal, openDetailFromDay,
   renderSettings, togFeat, setSpineGradMode, applyAccent,
-  cycleTagChipOrder, 
+  cycleTagChipOrder, saveRawUrl,
   showAddTag, hideAddTag, commitAddTag, startET, cancelET, commitET,
   delTag, renderTagAddPal, renderTagEditPal,
   openBookModal, closeBookModal, renderMSeriesSel,
   renderMTC, togMT, renderMFC, renderMNP, addTagFromModal, saveBook,
-  exportJSON, importJSON,
+  exportJSON, importJSON, reloadFromGitHub,
   get prevPg() { return prevPg; },
   init,
 };
 
 })(); // end App IIFE
+
+// アプリ起動
+App.init();
