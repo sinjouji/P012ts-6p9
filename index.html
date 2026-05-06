@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f6844">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ポイント管理</title>
+<link rel="manifest" href="manifest.json">
+<style>
+/* ══════════════════════════════════════
+   CSS変数・リセット
+══════════════════════════════════════ */
+:root{
+  --bg:#f2efe9;--surface:#fff;--surface2:#f8f6f2;
+  --primary:#2f6844;--pri-lt:#4a9962;--pri-dk:#1e4a2f;
+  --pts:#d4622a;--pts-bg:#fff3ed;
+  --time:#1a6fa8;--time-bg:#e8f4fb;
+  --neg:#c0392b;--neg-bg:#fdf0ef;
+  --yellow:#f5c518;--green:#27ae60;--red:#e74c3c;
+  --text:#1c1c1c;--text-md:#444;--text-lt:#777;
+  --border:#ddd8cf;--border-lt:#ede9e1;
+  --r:14px;--r-sm:8px;--r-lg:20px;
+  --font:-apple-system,'Helvetica Neue','Noto Sans JP',sans-serif;
+  --tr:.15s ease;
+  --shadow:0 1px 4px rgba(0,0,0,.08);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;-webkit-text-size-adjust:100%}
+body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;padding-bottom:calc(16px + env(safe-area-inset-bottom,0))}
+a{color:var(--primary);text-decoration:none}
+button{cursor:pointer;font-family:var(--font)}
+input,select,textarea{font-family:var(--font)}
+
+/* ══════════════════════════════════════
+   ヘッダー（タイトルのみ）
+══════════════════════════════════════ */
+.app-header{
+  background:var(--primary);color:#fff;
+  padding:12px 16px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+  box-shadow:0 2px 8px rgba(0,0,0,.2);
+}
+.app-header h1{font-size:1.05rem;font-weight:700;letter-spacing:.02em}
+.header-sub{font-size:.8rem;opacity:.8}
+
+/* ══════════════════════════════════════
+   ページナビ（ページ上部）
+══════════════════════════════════════ */
+.page-nav{
+  display:flex;overflow-x:auto;scrollbar-width:none;
+  background:var(--surface);
+  border-bottom:2px solid var(--border-lt);
+  padding:0 4px;
+  gap:2px;
+  position:sticky;top:45px;z-index:90;
+}
+.page-nav::-webkit-scrollbar{display:none}
+.page-nav a{
+  flex-shrink:0;
+  padding:10px 14px;
+  font-size:.83rem;font-weight:600;
+  color:var(--text-lt);
+  border-bottom:2px solid transparent;
+  margin-bottom:-2px;
+  transition:color var(--tr),border-color var(--tr);
+  white-space:nowrap;
+}
+.page-nav a.active{color:var(--primary);border-bottom-color:var(--primary)}
+.page-nav a:hover{color:var(--text)}
+
+/* ══════════════════════════════════════
+   ページコンテンツ
+══════════════════════════════════════ */
+.page{max-width:900px;margin:0 auto;padding:14px}
+.view{display:none}
+.view.active{display:block}
+
+/* ══════════════════════════════════════
+   カード / トグル
+══════════════════════════════════════ */
+.card{background:var(--surface);border-radius:var(--r);padding:14px;box-shadow:var(--shadow);border:1px solid var(--border-lt);margin-bottom:10px}
+.card-label{font-size:.73rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-lt);font-weight:700;margin-bottom:8px}
+.toggle{background:var(--surface);border:1px solid var(--border-lt);border-radius:var(--r);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow)}
+.toggle-hd{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:background var(--tr);gap:8px}
+.toggle-hd:hover{background:var(--surface2)}
+.toggle-hd:active{background:var(--border-lt)}
+.toggle-title{font-weight:700;font-size:.93rem}
+.toggle-icon{font-size:.72rem;color:var(--text-lt);transition:transform .2s;flex-shrink:0}
+.toggle.open .toggle-icon{transform:rotate(180deg)}
+.toggle-body{display:none;padding:0 15px 14px;border-top:1px solid var(--border-lt)}
+.toggle.open .toggle-body{display:block}
+.toggle-inner{padding-top:12px}
+
+/* ══════════════════════════════════════
+   ボタン
+══════════════════════════════════════ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:10px 16px;border:none;border-radius:var(--r-sm);font-size:.9rem;font-weight:600;transition:all var(--tr);-webkit-tap-highlight-color:transparent;user-select:none;white-space:nowrap;cursor:pointer}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--pri-lt)}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text-md)}.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn-neg{background:var(--neg);color:#fff}
+.btn-sm{padding:6px 12px;font-size:.8rem}
+.btn-lg{padding:13px 20px;font-size:1rem;border-radius:var(--r)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.w-full{width:100%}
+
+/* ══════════════════════════════════════
+   ステータスBOX
+══════════════════════════════════════ */
+.stat-row{display:flex;gap:10px;flex-wrap:wrap}
+.stat-box{flex:1;min-width:85px;background:var(--surface2);border-radius:var(--r-sm);padding:10px 12px;border:1px solid var(--border-lt);text-align:center}
+.stat-box .v{font-size:1.4rem;font-weight:700;line-height:1.2}
+.stat-box .l{font-size:.7rem;color:var(--text-lt);margin-top:2px}
+.s-pts .v{color:var(--pts)}.s-time .v{color:var(--time)}.s-yen .v{color:var(--primary)}
+
+/* ══════════════════════════════════════
+   今日の合計
+══════════════════════════════════════ */
+.day-strip{display:flex;gap:10px;margin-bottom:10px}
+.day-chip{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px;border-radius:var(--r-sm);font-size:.72rem;font-weight:600;border:1px solid}
+.day-chip.pts{background:var(--pts-bg);border-color:#f0c0a0;color:var(--pts)}
+.day-chip.time{background:var(--time-bg);border-color:#a0ccee;color:var(--time)}
+.day-chip .big{font-size:1.35rem;font-weight:700;line-height:1.2}
+.cum-row{display:flex;gap:14px;background:var(--surface);border:1px solid var(--border-lt);border-radius:var(--r);padding:10px 14px;margin-bottom:10px}
+.cum-col{flex:1;text-align:center}
+.cum-col .cl{font-size:.7rem;color:var(--text-lt);font-weight:700}
+.cum-col .cv{font-size:1.15rem;font-weight:700}
+.cv-pts{color:var(--pts)}.cv-time{color:var(--time)}
+
+/* ══════════════════════════════════════
+   固定項目ボタン
+══════════════════════════════════════ */
+.items-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+@media(min-width:440px){.items-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:640px){.items-grid{grid-template-columns:repeat(4,1fr)}}
+.item-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 7px;border:1.5px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer;transition:all var(--tr);gap:3px;text-align:center;-webkit-tap-highlight-color:transparent;position:relative;min-height:68px}
+.item-btn:hover{border-color:var(--primary);background:#f0f7f3}
+.item-btn:active{transform:scale(.95)}
+.item-btn.done{background:#e8f5e9;border-color:#81c784}
+.item-btn.neg-item{border-color:#ef9a9a}
+.item-btn.neg-item:hover{background:#ffebee;border-color:var(--neg)}
+.item-btn.neg-item.done{background:#ffebee;border-color:#ef5350}
+.item-name{font-size:.78rem;font-weight:600;line-height:1.3;color:var(--text)}
+.item-meta{display:flex;gap:3px;flex-wrap:wrap;justify-content:center}
+.badge-p{font-size:.67rem;font-weight:700;color:var(--pts);background:var(--pts-bg);padding:1px 5px;border-radius:10px}
+.badge-t{font-size:.67rem;font-weight:700;color:var(--time);background:var(--time-bg);padding:1px 5px;border-radius:10px}
+.badge-n{font-size:.67rem;font-weight:700;color:var(--neg);background:var(--neg-bg);padding:1px 5px;border-radius:10px}
+.done-mark{position:absolute;top:3px;right:4px;font-size:.68rem;color:#43a047}
+.cnt-badge{position:absolute;top:3px;left:4px;font-size:.62rem;font-weight:700;background:var(--primary);color:#fff;border-radius:10px;padding:0 5px;min-width:16px;text-align:center}
+.neg-sep{grid-column:1/-1;border-top:1px dashed var(--border);padding-top:4px;font-size:.7rem;color:var(--text-lt);font-weight:700}
+
+/* ══════════════════════════════════════
+   ログ
+══════════════════════════════════════ */
+.log-list{list-style:none;display:flex;flex-direction:column;gap:4px}
+.log-item{display:flex;align-items:flex-start;justify-content:space-between;padding:7px 10px;background:var(--surface2);border:1px solid var(--border-lt);border-radius:var(--r-sm);font-size:.78rem;gap:8px;line-height:1.5}
+.log-text{flex:1;word-break:break-all}
+.lp{color:var(--pts);font-weight:700}.lt{color:var(--time);font-weight:700}.ln{color:var(--neg);font-weight:700}
+.log-del{flex-shrink:0;background:none;border:none;color:var(--text-lt);font-size:.85rem;cursor:pointer;padding:2px 4px;border-radius:4px;opacity:.35;transition:opacity var(--tr)}
+.log-del:hover{opacity:1;color:var(--neg)}
+
+/* ══════════════════════════════════════
+   週カレンダー
+══════════════════════════════════════ */
+.week-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-day{border-radius:var(--r-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:1.5px solid var(--border-lt);background:var(--surface2);transition:all var(--tr);text-decoration:none;color:var(--text);-webkit-tap-highlight-color:transparent;padding:3px 2px;min-height:50px}
+.cal-day:hover{border-color:var(--primary)}
+.cal-day .dlabel{font-size:.58rem;color:var(--text-lt);font-weight:700;text-transform:uppercase}
+.cal-day .dnum{font-size:.95rem;font-weight:700;line-height:1.2}
+.cal-day .dicons{font-size:.6rem;min-height:11px;line-height:1}
+.cal-day.sun .dlabel,.cal-day.sun .dnum{color:#e53935}
+.cal-day.sat .dlabel,.cal-day.sat .dnum{color:#1e88e5}
+.cal-day.today{border-color:var(--primary);border-width:2px}
+.cal-day.today .dnum{color:var(--primary)}
+.cal-day.bg-yellow{background:#fffde7;border-color:var(--yellow)}
+.cal-day.bg-red{background:#ffebee;border-color:var(--red)}
+.cal-day.bg-green{background:#e8f5e9;border-color:var(--green)}
+
+/* ══════════════════════════════════════
+   レートメモ
+══════════════════════════════════════ */
+.rate-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
+.rate-tbl td{padding:5px 7px;border-bottom:1px solid var(--border-lt)}
+.rate-tbl td:first-child{color:var(--text-lt);white-space:nowrap}
+.rate-tbl td:last-child{font-weight:600}
+.rate-tbl tr:last-child td{border-bottom:none}
+
+/* ══════════════════════════════════════
+   モーダル
+══════════════════════════════════════ */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:1000}
+.modal-bg.open{display:flex}
+.modal-box{background:var(--surface);width:100%;max-width:500px;border-radius:var(--r-lg) var(--r-lg) 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0));box-shadow:0 8px 32px rgba(0,0,0,.14);max-height:90vh;overflow-y:auto}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.modal-hd h3{font-size:.98rem;font-weight:700}
+.modal-close{background:none;border:none;font-size:1.2rem;color:var(--text-lt);cursor:pointer;padding:2px 6px;border-radius:4px}
+.modal-close:hover{color:var(--text);background:var(--border-lt)}
+/* 確認ダイアログ */
+.confirm-box{background:var(--surface);width:100%;max-width:340px;border-radius:var(--r);padding:22px 20px;margin-bottom:30px;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.confirm-box p{font-size:.9rem;margin-bottom:16px;line-height:1.6}
+.confirm-btns{display:flex;gap:10px}
+
+/* ══════════════════════════════════════
+   フォーム
+══════════════════════════════════════ */
+.fg{margin-bottom:12px}
+.fg label{display:block;font-size:.8rem;font-weight:600;color:var(--text-md);margin-bottom:4px}
+.fg input,.fg select,.fg textarea{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:.88rem;background:var(--surface);color:var(--text);transition:border-color var(--tr)}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(47,104,68,.1)}
+.form-row{display:flex;gap:10px}
+.form-row .fg{flex:1}
+.form-check{display:flex;align-items:center;gap:7px;margin:5px 0}
+.form-check input[type=checkbox]{width:17px;height:17px;accent-color:var(--primary)}
+.sign-toggle{display:flex;border:1.5px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
+.sign-toggle button{flex:1;padding:9px;border:none;font-size:.95rem;font-weight:700;background:var(--surface);color:var(--text-lt);transition:all var(--tr);cursor:pointer}
+.sign-toggle button.on-pos{background:#e8f5e9;color:#2e7d32}
+.sign-toggle button.on-neg{background:#ffebee;color:#c62828}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.chip{padding:3px 9px;border-radius:20px;background:var(--surface2);border:1px solid var(--border);font-size:.76rem;cursor:pointer;transition:all var(--tr)}
+.chip:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* ══════════════════════════════════════
+   設定リスト
+══════════════════════════════════════ */
+.set-list{display:flex;flex-direction:column;gap:7px}
+.set-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--surface2);border:1px solid var(--border-lt);border-radius:var(--r-sm);gap:10px}
+.set-row .rm{flex:1}
+.set-row .rn{font-weight:600;font-size:.88rem}
+.set-row .rs{font-size:.72rem;color:var(--text-lt);margin-top:2px}
+.set-row .ra{display:flex;gap:5px}
+.edit-btn,.del-btn{padding:4px 9px;font-size:.73rem;border-radius:6px;cursor:pointer;transition:all var(--tr)}
+.edit-btn{border:1px solid var(--border);background:var(--surface)}.edit-btn:hover{border-color:var(--primary);color:var(--primary)}
+.del-btn{border:1px solid #ffcdd2;background:#fff5f5;color:var(--neg)}.del-btn:hover{background:var(--neg);color:#fff;border-color:var(--neg)}
+
+/* ══════════════════════════════════════
+   交換・推移
+══════════════════════════════════════ */
+.ex-list{display:flex;flex-direction:column;gap:6px}
+.ex-item{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 11px;background:var(--surface2);border:1px solid var(--border-lt);border-radius:var(--r-sm);font-size:.8rem;gap:8px}
+.ex-pts{font-weight:700;color:var(--neg)}
+.ex-type{font-size:.67rem;font-weight:700;padding:2px 6px;border-radius:10px;background:var(--pts-bg);color:var(--pts);display:inline-block;margin-bottom:3px}
+.dots{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;color:var(--text-lt)}
+.dot.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.chart-wrap{background:var(--surface);border-radius:var(--r);border:1px solid var(--border-lt);padding:13px;margin-bottom:10px}
+.chart-wrap h4{font-size:.75rem;color:var(--text-lt);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.mo-tbl{width:100%;border-collapse:collapse;font-size:.82rem}
+.mo-tbl th{background:var(--surface2);padding:6px 9px;text-align:left;font-size:.7rem;color:var(--text-lt);text-transform:uppercase;border-bottom:1px solid var(--border)}
+.mo-tbl td{padding:7px 9px;border-bottom:1px solid var(--border-lt)}
+.mo-tbl tr:last-child td{border-bottom:none}
+.td-p{color:var(--pts);font-weight:700}.td-t{color:var(--time);font-weight:700}
+
+/* ══════════════════════════════════════
+   ユーティリティ
+══════════════════════════════════════ */
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.text-lt{color:var(--text-lt)}.text-xs{font-size:.71rem}
+.divider{border:none;border-top:1px solid var(--border-lt);margin:12px 0}
+.page-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.user-badge{background:var(--primary);color:#fff;border-radius:20px;padding:3px 13px;font-size:.82rem;font-weight:700}
+.date-badge{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 13px;font-size:.82rem;font-weight:500}
+.day-nav{display:flex;gap:5px;margin-left:auto}
+.user-tabs{display:flex;gap:8px;margin-bottom:12px}
+.user-tab{flex:1;padding:9px;text-align:center;border:2px solid var(--border);border-radius:var(--r-sm);background:var(--surface);font-weight:600;font-size:.92rem;color:var(--text-lt);cursor:pointer;transition:all var(--tr)}
+.user-tab.active{border-color:var(--primary);color:var(--primary);background:#f0f7f3}
+.loading{text-align:center;padding:30px;color:var(--text-lt)}
+.spinner{display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:24px;color:var(--text-lt);font-size:.85rem}
+.home-grid{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:800px){.home-grid{grid-template-columns:210px 1fr}}
+/* トースト */
+.toast-wrap{position:fixed;top:60px;right:12px;z-index:9999;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.toast{background:#1c1c1c;color:#fff;padding:9px 15px;border-radius:var(--r-sm);font-size:.83rem;max-width:280px;box-shadow:0 2px 10px rgba(0,0,0,.2);animation:tin .2s ease}
+.toast.ok{background:var(--primary)}.toast.ng{background:var(--neg)}.toast.info{background:var(--time)}
+@keyframes tin{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+@keyframes pop{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+.anim-pop{animation:pop .25s ease}
+/* Firebase設定バナー */
+.fb-banner{background:#fff3e0;border:1px solid #ffcc80;border-radius:var(--r-sm);padding:12px 14px;margin-bottom:14px;font-size:.83rem;line-height:1.7}
+.fb-banner strong{color:#e65100}
+.fb-banner code{background:#f5f5f5;border-radius:4px;padding:1px 5px;font-size:.8rem}
+/* ダークモード */
+@media(prefers-color-scheme:dark){
+  :root{--bg:#141814;--surface:#1e241e;--surface2:#262e26;--text:#e8ece8;--text-md:#b0b8b0;--text-lt:#778877;--border:#334433;--border-lt:#2a342a}
+  .page-nav{border-bottom-color:var(--border)}
+}
+</style>
+</head>
+<body>
+
+<!-- ヘッダー -->
+<header class="app-header">
+  <h1 id="header-title">⭐ ポイント管理</h1>
+  <span class="header-sub" id="sync-status"></span>
+</header>
+
+<!-- ページナビ（ヘッダー直下・ページ上部） -->
+<nav class="page-nav" id="page-nav">
+  <a href="#home"     class="active" data-view="home">🏠 ホーム</a>
+  <a href="#daily"    data-view="daily">📅 デイリー</a>
+  <a href="#summary"  data-view="summary">📊 まとめ</a>
+  <a href="#trends"   data-view="trends">📉 推移</a>
+  <a href="#settings" data-view="settings">⚙️ 設定</a>
+</nav>
+
+<!-- メインコンテンツ -->
+<div class="page">
+
+  <!-- ══ HOME ══ -->
+  <div class="view active" id="view-home">
+    <div class="home-grid">
+      <!-- 左 -->
+      <div>
+        <div class="card">
+          <div class="card-label">今日のページ</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-primary btn-lg w-full" onclick="goDaily(1)">👦 息子のデイリー</button>
+            <button class="btn btn-primary btn-lg w-full" style="background:var(--pts)" onclick="goDaily(2)">👧 娘のデイリー</button>
+          </div>
+          <hr class="divider">
+          <div class="card-label">過去のページ</div>
+          <div class="fg"><label>日付</label><input type="date" id="past-date"></div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn btn-outline btn-sm" style="flex:1" onclick="goDaily(1,document.getElementById('past-date').value)">息子</button>
+            <button class="btn btn-outline btn-sm" style="flex:1" onclick="goDaily(2,document.getElementById('past-date').value)">娘</button>
+          </div>
+        </div>
+      </div>
+      <!-- 右 -->
+      <div>
+        <!-- ステータス -->
+        <div class="toggle open">
+          <div class="toggle-hd"><span class="toggle-title">📊 現在のステータス（累計）</span><span class="toggle-icon">▼</span></div>
+          <div class="toggle-body"><div class="toggle-inner">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div>
+                <div style="font-size:.78rem;color:var(--text-lt);font-weight:700;margin-bottom:6px">👦 息子</div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div class="stat-box s-time"><div class="v" id="son-time">－</div><div class="l">残り時間</div></div>
+                  <div class="stat-box s-pts"> <div class="v" id="son-pts">－</div><div class="l">残りポイント</div></div>
+                  <div class="stat-box s-yen"> <div class="v" id="son-yen">－</div><div class="l">金額換算</div></div>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:.78rem;color:var(--text-lt);font-weight:700;margin-bottom:6px">👧 娘</div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div class="stat-box s-time"><div class="v" id="daughter-time">－</div><div class="l">残り時間</div></div>
+                  <div class="stat-box s-pts"> <div class="v" id="daughter-pts">－</div><div class="l">残りポイント</div></div>
+                  <div class="stat-box s-yen"> <div class="v" id="daughter-yen">－</div><div class="l">金額換算</div></div>
+                </div>
+              </div>
+            </div>
+          </div></div>
+        </div>
+        <!-- 息子カレンダー -->
+        <div class="toggle open">
+          <div class="toggle-hd"><span class="toggle-title">👦 息子 週カレンダー</span><span class="toggle-icon">▼</span></div>
+          <div class="toggle-body"><div class="toggle-inner"><div class="week-cal" id="cal-son"></div></div></div>
+        </div>
+        <!-- 娘カレンダー -->
+        <div class="toggle open">
+          <div class="toggle-hd"><span class="toggle-title">👧 娘 週カレンダー</span><span class="toggle-icon">▼</span></div>
+          <div class="toggle-body"><div class="toggle-inner"><div class="week-cal" id="cal-daughter"></div></div></div>
+        </div>
+        <!-- レートメモ -->
+        <div class="toggle">
+          <div class="toggle-hd"><span class="toggle-title">💡 レート・換算メモ</span><span class="toggle-icon">▼</span></div>
+          <div class="toggle-body"><div class="toggle-inner">
+            <table class="rate-tbl">
+              <tr><td>スマイルゼミ</td><td>+1P・+30分（時間3回まで）</td></tr>
+              <tr><td>宿題</td><td>+1P（1日1回）</td></tr>
+              <tr><td>ゴミ捨て</td><td>+1P（1日1回）</td></tr>
+              <tr><td>明日の服</td><td>+1P（1日1回）</td></tr>
+              <tr><td>連絡帳きれい</td><td>+5P（1日1回）</td></tr>
+              <tr><td>上ばき洗い</td><td>+5P（1日1回）</td></tr>
+              <tr><td>玄関整頓</td><td>+5P（1日1回）</td></tr>
+              <tr><td>食事前片付け</td><td>+10P（1日3回まで）</td></tr>
+              <tr><td>服の引き出し整頓</td><td>+20P（週1回）</td></tr>
+              <tr><td>ゲーム30分</td><td>−30分</td></tr>
+              <tr><td>ゲーム60分</td><td>−60分</td></tr>
+              <tr><td colspan="2" style="color:var(--text-lt);font-size:.75rem;padding-top:6px">── 交換レート ──</td></tr>
+              <tr><td>50P</td><td>= 1時間</td></tr>
+              <tr><td>1P</td><td>= 4円</td></tr>
+              <tr><td colspan="2" style="color:var(--text-lt);font-size:.75rem;padding-top:6px">── 明日の服 ──</td></tr>
+              <tr><td>7日連続</td><td>ボーナス +10P</td></tr>
+            </table>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ DAILY ══ -->
+  <div class="view" id="view-daily">
+    <div class="page-meta">
+      <span class="user-badge" id="daily-user-badge">息子</span>
+      <span class="date-badge" id="daily-date-badge"></span>
+      <div class="day-nav">
+        <button class="btn btn-outline btn-sm" id="btn-prev">◀</button>
+        <button class="btn btn-outline btn-sm" id="btn-today">今日</button>
+        <button class="btn btn-outline btn-sm" id="btn-next">▶</button>
+      </div>
+    </div>
+    <div class="day-strip">
+      <div class="day-chip pts"><div class="big" id="today-pts">－</div><div>今日のポイント</div></div>
+      <div class="day-chip time"><div class="big" id="today-time">－</div><div>今日の時間</div></div>
+    </div>
+    <div class="cum-row">
+      <div class="cum-col"><div class="cl">累計ポイント</div><div class="cv cv-pts" id="cum-pts">－</div></div>
+      <div class="cum-col"><div class="cl">累計時間</div><div class="cv cv-time" id="cum-time">－</div></div>
+    </div>
+    <div class="toggle open">
+      <div class="toggle-hd"><span class="toggle-title">🎯 固定項目</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <div class="items-grid" id="items-grid"><div class="loading"><div class="spinner"></div></div></div>
+      </div></div>
+    </div>
+    <div class="card mt12" style="display:flex;align-items:center;justify-content:space-between">
+      <span style="font-weight:700;font-size:.9rem">✏️ 手動追加</span>
+      <button class="btn btn-outline btn-sm" onclick="openModal('manual-modal')">＋ 追加する</button>
+    </div>
+    <div class="toggle open mt12">
+      <div class="toggle-hd"><span class="toggle-title">📋 ログ</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner"><ul class="log-list" id="log-list"></ul></div></div>
+    </div>
+    <div class="mt16" style="text-align:center">
+      <button class="btn btn-outline" onclick="goView('summary')">📊 集計ページへ</button>
+    </div>
+  </div>
+
+  <!-- ══ SUMMARY ══ -->
+  <div class="view" id="view-summary">
+    <div class="user-tabs">
+      <button class="user-tab active" id="sum-tab-1" onclick="setSumUser(1)">👦 息子</button>
+      <button class="user-tab"        id="sum-tab-2" onclick="setSumUser(2)">👧 娘</button>
+    </div>
+    <div class="toggle open">
+      <div class="toggle-hd"><span class="toggle-title">📈 累計ステータス</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <div class="stat-row">
+          <div class="stat-box s-pts"> <div class="v" id="sum-pts">－</div><div class="l">残りポイント</div></div>
+          <div class="stat-box s-time"><div class="v" id="sum-time">－</div><div class="l">残り時間</div></div>
+          <div class="stat-box s-yen"> <div class="v" id="sum-yen">－</div><div class="l">金額換算</div></div>
+        </div>
+        <div style="font-size:.72rem;color:var(--text-lt);margin-top:6px">※時間は1時間ごとに50Pに換算。端数は時間のまま残す。1P=4円</div>
+      </div></div>
+    </div>
+    <div class="toggle open">
+      <div class="toggle-hd"><span class="toggle-title">👕 明日の服カウント</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:.85rem;font-weight:600">7日連続で +10P ボーナス</span>
+          <span id="clothes-num" style="font-size:1.1rem;font-weight:700;color:var(--primary)">－日</span>
+        </div>
+        <div class="dots" id="clothes-dots"></div>
+      </div></div>
+    </div>
+    <div class="toggle open">
+      <div class="toggle-hd"><span class="toggle-title">🔄 ポイント交換</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <div style="margin-bottom:10px"><button class="btn btn-outline btn-sm" onclick="openModal('ex-modal')">＋ 交換を記録</button></div>
+        <div class="ex-list" id="ex-list"></div>
+      </div></div>
+    </div>
+    <div class="mt12" style="text-align:center">
+      <button class="btn btn-outline" onclick="goView('trends')">📉 推移グラフへ</button>
+    </div>
+  </div>
+
+  <!-- ══ TRENDS ══ -->
+  <div class="view" id="view-trends">
+    <div class="user-tabs">
+      <button class="user-tab active" id="tr-tab-1" onclick="setTrUser(1)">👦 息子</button>
+      <button class="user-tab"        id="tr-tab-2" onclick="setTrUser(2)">👧 娘</button>
+    </div>
+    <div class="toggle open">
+      <div class="toggle-hd"><span class="toggle-title">📊 月ごとポイント推移</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner"><div class="chart-wrap"><canvas id="chart-pts" height="200"></canvas></div></div></div>
+    </div>
+    <div class="toggle open">
+      <div class="toggle-hd"><span class="toggle-title">⏱ 月ごと時間推移</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner"><div class="chart-wrap"><canvas id="chart-time" height="200"></canvas></div></div></div>
+    </div>
+    <div class="toggle">
+      <div class="toggle-hd"><span class="toggle-title">📅 年ごと推移</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner"><div class="chart-wrap"><canvas id="chart-year" height="180"></canvas></div></div></div>
+    </div>
+    <div class="toggle">
+      <div class="toggle-hd"><span class="toggle-title">📋 月別データ</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <table class="mo-tbl"><thead><tr><th>月</th><th>ポイント</th><th>時間</th><th>日数</th></tr></thead><tbody id="mo-tbody"></tbody></table>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ══ SETTINGS ══ -->
+  <div class="view" id="view-settings">
+    <!-- Firebase設定 -->
+    <div class="toggle open">
+      <div class="toggle-hd"><span class="toggle-title">🔥 Firebase 接続設定</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <div class="fb-banner">
+          <strong>初回のみ設定が必要です。</strong><br>
+          Firebaseコンソールでプロジェクトを作成し、<br>
+          Realtime Database の設定値を入力してください。<br>
+          入力後「保存」するとブラウザに記録され、以降は自動接続されます。
+        </div>
+        <div class="fg"><label>API Key</label><input type="text" id="fb-apikey" placeholder="AIzaSy..."></div>
+        <div class="fg"><label>Auth Domain</label><input type="text" id="fb-authdomain" placeholder="xxx.firebaseapp.com"></div>
+        <div class="fg"><label>Database URL</label><input type="text" id="fb-dburl" placeholder="https://xxx-default-rtdb.firebaseio.com"></div>
+        <div class="fg"><label>Project ID</label><input type="text" id="fb-projectid" placeholder="your-project-id"></div>
+        <div class="fg"><label>App ID</label><input type="text" id="fb-appid" placeholder="1:xxx:web:xxx"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveFbConfig()">🔥 Firebase 接続を保存</button>
+        <span style="font-size:.75rem;color:var(--text-lt);margin-left:10px" id="fb-status"></span>
+      </div></div>
+    </div>
+    <!-- レート設定 -->
+    <div class="toggle open">
+      <div class="toggle-hd"><span class="toggle-title">💰 レート設定</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <div class="form-row">
+          <div class="fg"><label>1時間 = 何ポイント</label><input type="number" id="s-pph" min="1" inputmode="numeric"></div>
+          <div class="fg"><label>1P = 何円</label><input type="number" id="s-ypp" min="1" inputmode="numeric"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveSettings()">保存する</button>
+      </div></div>
+    </div>
+    <!-- 固定項目 -->
+    <div class="toggle open">
+      <div class="toggle-hd"><span class="toggle-title">🎯 固定項目の管理</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <div style="margin-bottom:10px"><button class="btn btn-primary btn-sm" onclick="openItemModal(null)">＋ 新規項目を追加</button></div>
+        <div class="set-list" id="items-list"></div>
+      </div></div>
+    </div>
+    <!-- 服カウント -->
+    <div class="toggle">
+      <div class="toggle-hd"><span class="toggle-title">👕 明日の服カウント管理</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <p style="font-size:.83rem;color:var(--text-lt);margin-bottom:10px">7日連続ボーナスのカウントをリセットします。</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="resetClothes(1)">👦 息子リセット</button>
+          <button class="btn btn-outline btn-sm" onclick="resetClothes(2)">👧 娘リセット</button>
+        </div>
+      </div></div>
+    </div>
+    <!-- データ初期化 -->
+    <div class="toggle">
+      <div class="toggle-hd"><span class="toggle-title">🗄️ データ管理</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <p style="font-size:.83rem;color:var(--text-lt);margin-bottom:10px">Firebaseのデータを初期状態に戻します。実行すると全データが消えます。</p>
+        <button class="btn btn-neg btn-sm" onclick="initFirebaseData()">⚠️ データを初期化する</button>
+      </div></div>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<!-- ══ モーダル群 ══ -->
+
+<!-- 手動追加 -->
+<div class="modal-bg" id="manual-modal">
+  <div class="modal-box">
+    <div class="modal-hd"><h3>✏️ 手動追加</h3><button class="modal-close" onclick="closeModal('manual-modal')">✕</button></div>
+    <input type="hidden" id="sign-val" value="+">
+    <div class="fg"><label>＋ / −</label>
+      <div class="sign-toggle">
+        <button type="button" data-val="+" class="on-pos" onclick="setSign(this)">＋ 加算</button>
+        <button type="button" data-val="-" onclick="setSign(this)">− 減算</button>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>ポイント</label><input type="number" id="m-pts" min="0" placeholder="0" inputmode="numeric"></div>
+      <div class="fg"><label>時間（分）</label><input type="number" id="m-mins" min="0" placeholder="0" inputmode="numeric"></div>
+    </div>
+    <div class="fg">
+      <label>内訳</label><input type="text" id="m-desc" placeholder="内容を入力">
+      <div class="chips mt8">
+        <span class="chip" onclick="setDesc(this)">お手伝い</span><span class="chip" onclick="setDesc(this)">テスト</span>
+        <span class="chip" onclick="setDesc(this)">読書</span><span class="chip" onclick="setDesc(this)">練習</span>
+        <span class="chip" onclick="setDesc(this)">特別</span><span class="chip" onclick="setDesc(this)">ゲーム</span>
+        <span class="chip" onclick="setDesc(this)">交換</span><span class="chip" onclick="setDesc(this)">修正</span>
+      </div>
+    </div>
+    <button class="btn btn-primary w-full btn-lg" onclick="submitManual()">追加する</button>
+  </div>
+</div>
+
+<!-- 交換記録 -->
+<div class="modal-bg" id="ex-modal">
+  <div class="modal-box">
+    <div class="modal-hd"><h3>🔄 交換を記録</h3><button class="modal-close" onclick="closeModal('ex-modal')">✕</button></div>
+    <div class="fg"><label>交換タイプ</label>
+      <select id="ex-type">
+        <option value="time">⏱ 時間（ゲームなど）</option>
+        <option value="money">💰 お小遣い</option>
+        <option value="item">🎁 アイテム・商品</option>
+        <option value="other">その他</option>
+      </select>
+    </div>
+    <div class="fg"><label>使用ポイント</label><input type="number" id="ex-pts" min="1" placeholder="例: 50" inputmode="numeric"></div>
+    <div class="fg"><label>もらったもの</label><input type="text" id="ex-val" placeholder="例: 1時間 / 200円"></div>
+    <div class="fg"><label>メモ</label><input type="text" id="ex-desc" placeholder="例: マインクラフト1時間"></div>
+    <button class="btn btn-primary w-full btn-lg" onclick="submitExchange()">交換を記録する</button>
+  </div>
+</div>
+
+<!-- 固定項目編集 -->
+<div class="modal-bg" id="item-modal">
+  <div class="modal-box">
+    <div class="modal-hd"><h3 id="item-modal-title">項目を追加</h3><button class="modal-close" onclick="closeModal('item-modal')">✕</button></div>
+    <input type="hidden" id="i-id">
+    <div class="fg"><label>名前 *</label><input type="text" id="i-name" placeholder="例: スマイルゼミ"></div>
+    <div class="form-row">
+      <div class="fg"><label>ポイント</label><input type="number" id="i-point" value="0" inputmode="numeric"></div>
+      <div class="fg"><label>時間（分）</label><input type="number" id="i-time" value="0" inputmode="numeric"></div>
+    </div>
+    <div class="fg">
+      <div class="form-check"><input type="checkbox" id="i-daily"><label for="i-daily">1日1回制限</label></div>
+      <div class="form-check"><input type="checkbox" id="i-weekly"><label for="i-weekly">週1回制限</label></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>1日最大回数</label><input type="number" id="i-max" min="1" placeholder="無制限"></div>
+      <div class="fg"><label>P加算最大/日</label><input type="number" id="i-maxp" min="1" placeholder="無制限"></div>
+      <div class="fg"><label>時間加算最大/日</label><input type="number" id="i-maxt" min="1" placeholder="無制限"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>システムキー</label><input type="text" id="i-key" placeholder="例: smilezemi"></div>
+      <div class="fg"><label>表示順</label><input type="number" id="i-sort" value="0"></div>
+    </div>
+    <div class="fg">
+      <div class="form-check"><input type="checkbox" id="i-pos" checked><label for="i-pos">プラス項目</label></div>
+      <div class="form-check"><input type="checkbox" id="i-son" checked><label for="i-son">息子に表示</label></div>
+      <div class="form-check"><input type="checkbox" id="i-daughter" checked><label for="i-daughter">娘に表示</label></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline w-full" onclick="closeModal('item-modal')">キャンセル</button>
+      <button class="btn btn-primary w-full" onclick="submitItemForm()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 確認ダイアログ -->
+<div class="modal-bg" id="confirm-bg">
+  <div class="confirm-box">
+    <p id="confirm-msg"></p>
+    <div class="confirm-btns">
+      <button class="btn btn-outline w-full" onclick="closeModal('confirm-bg')">キャンセル</button>
+      <button class="btn btn-neg w-full" id="confirm-ok">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Firebase -->
+<script type="module" src="app.js"></script>
+</body>
+</html>
