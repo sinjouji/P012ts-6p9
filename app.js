@@ -1,923 +1,2277 @@
-/**
- * app.js  ポイント管理アプリ
- * Firebase Realtime Database を使ったリアルタイム同期版
- */
-import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getDatabase, ref, get, set, update, remove, onValue }
-  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+// ★ JSON URL
+const DATA_URL = "https://raw.githubusercontent.com/sinjouji/my-b0o0oksd6t6/main/data.json";
 
-/* ══════════════════════════════════════
-   ユーティリティ（最初に定義）
-══════════════════════════════════════ */
-const g      = id => document.getElementById(id);
-const mkEl   = (t,c,tx) => { const e=document.createElement(t); e.className=c; if(tx!==undefined)e.textContent=tx; return e; };
-const setText= (id,t) => { const e=g(id); if(e) e.textContent=t; };
-const setVal = (id,v) => { const e=g(id); if(e) e.value=v; };
-const getVal = id => g(id)?.value??'';
-const setChk = (id,v) => { const e=g(id); if(e) e.checked=!!v; };
-const fmtMin = m => { m=parseInt(m||0); if(!m)return'0分'; const s=m<0?'-':'',a=Math.abs(m),h=Math.floor(a/60),r=a%60; return h?r?`${s}${h}時間${r}分`:`${s}${h}時間`:`${s}${r}分`; };
-const todayStr = () => new Date().toLocaleDateString('sv-SE');
-const dowJa    = d  => ['日','月','火','水','木','金','土'][new Date(d+'T00:00:00').getDay()];
-const offsetDate = (d,n) => { const dt=new Date(d+'T00:00:00'); dt.setDate(dt.getDate()+n); return dt.toLocaleDateString('sv-SE'); };
+//🟦①====状態（let）====
+//初期設定
 
-/* ══════════════════════════════════════
-   datas.json の埋め込み初期データ
-══════════════════════════════════════ */
-const DEFAULT_DATA = {
-  settings: { points_per_hour: 50, yen_per_point: 4 },
-  items: [
-    {id:1,name:"スマイルゼミ",base_point:1,base_time:30,daily_limit:false,weekly_limit:false,max_per_day:null,max_point_per_day:1,max_time_per_day:3,item_key:"smilezemi",is_positive:true,visible_son:true,visible_daughter:true,sort_order:1},
-    {id:2,name:"宿題",base_point:1,base_time:0,daily_limit:true,weekly_limit:false,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:"homework",is_positive:true,visible_son:true,visible_daughter:true,sort_order:2},
-    {id:3,name:"ゴミ捨て",base_point:1,base_time:0,daily_limit:true,weekly_limit:false,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:null,is_positive:true,visible_son:true,visible_daughter:true,sort_order:3},
-    {id:4,name:"明日の服",base_point:1,base_time:0,daily_limit:true,weekly_limit:false,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:"ashita_no_fuku",is_positive:true,visible_son:true,visible_daughter:true,sort_order:4},
-    {id:5,name:"連絡帳きれい",base_point:5,base_time:0,daily_limit:true,weekly_limit:false,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:"renrakucho",is_positive:true,visible_son:true,visible_daughter:true,sort_order:5},
-    {id:6,name:"上ばき洗い",base_point:5,base_time:0,daily_limit:true,weekly_limit:false,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:null,is_positive:true,visible_son:true,visible_daughter:true,sort_order:6},
-    {id:7,name:"玄関整頓",base_point:5,base_time:0,daily_limit:true,weekly_limit:false,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:null,is_positive:true,visible_son:true,visible_daughter:true,sort_order:7},
-    {id:8,name:"食事前片付け",base_point:10,base_time:0,daily_limit:false,weekly_limit:false,max_per_day:3,max_point_per_day:null,max_time_per_day:null,item_key:null,is_positive:true,visible_son:true,visible_daughter:true,sort_order:8},
-    {id:9,name:"服の引き出し整頓",base_point:20,base_time:0,daily_limit:false,weekly_limit:true,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:"hikidashi",is_positive:true,visible_son:true,visible_daughter:true,sort_order:9},
-    {id:10,name:"ゲーム30分",base_point:0,base_time:-30,daily_limit:true,weekly_limit:false,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:null,is_positive:false,visible_son:true,visible_daughter:true,sort_order:10},
-    {id:11,name:"ゲーム60分",base_point:0,base_time:-60,daily_limit:true,weekly_limit:false,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:null,is_positive:false,visible_son:true,visible_daughter:true,sort_order:11}
-  ],
-  users: {
-    son:      { clothes_count:0, clothes_last_date:null, exchange_logs:{}, daily:{} },
-    daughter: { clothes_count:0, clothes_last_date:null, exchange_logs:{}, daily:{} }
-  }
-};
+let books = [];
+let series = [];
+let characters = [];
+let tagMaster = [];
+let selectedTagId = localStorage.getItem("selectedTagId");
+if(!selectedTagId) selectedTagId = null;
 
-/* ══════════════════════════════════════
-   Firebase 初期化
-══════════════════════════════════════ */
-let db = null;
+const savedMode = localStorage.getItem("colorMode");
 
-function loadFbConfig() {
-  try { return JSON.parse(localStorage.getItem('fb_config') || 'null'); } catch { return null; }
+let colorMode = localStorage.getItem("colorMode") || "single";
+if(!["single","gradient","stripe"].includes(colorMode)){
+  colorMode = "single";
+} // 背表紙カラー：single/gradient/stripe
+
+let viewMode = localStorage.getItem("viewMode") || "card";
+// 保険（壊れた値対策）
+if(!["card","shelf"].includes(viewMode)){
+  viewMode = "card";
 }
 
-function connectFirebase(cfg) {
-  if (!cfg?.apiKey || !cfg?.databaseURL) return false;
-  try {
-    const app = initializeApp(cfg, 'points-app');
-    db = getDatabase(app);
-    setupRealtimeSync();
-    setSyncStatus('🟢 接続中');
-    return true;
-  } catch (e) {
-    setSyncStatus('🔴 接続失敗');
-    console.error('Firebase init error:', e);
-    return false;
-  }
-}
+let sortMode = localStorage.getItem("sortMode") || "title";
 
-window.saveFbConfig = function() {
-  const cfg = {
-    apiKey:            getVal('fb-apikey').trim(),
-    authDomain:        getVal('fb-authdomain').trim(),
-    databaseURL:       getVal('fb-dburl').trim(),
-    projectId:         getVal('fb-projectid').trim(),
-    appId:             getVal('fb-appid').trim(),
-  };
-  if (!cfg.apiKey || !cfg.databaseURL) { toast('APIキーとDatabase URLは必須です', 'ng'); return; }
-  localStorage.setItem('fb_config', JSON.stringify(cfg));
-  const ok = connectFirebase(cfg);
-  g('fb-status').textContent = ok ? '✅ 保存・接続しました' : '❌ 接続に失敗しました';
-  if (ok) toast('Firebase に接続しました 🔥', 'ok');
+
+let openedSeries = {};
+let showTags = localStorage.getItem("showTags") === "true";
+let sortKey = localStorage.getItem("sortKey") || "title"; //なにで並べるか
+let sortOrder = localStorage.getItem("sortOrder") || "asc"; // asc / desc
+let selectedType = "all"; // "all" | "normal" | "wish"※ウィッシュリスト切替
+let currentMonth = new Date();
+
+//====年間目標設定
+let yearlyGoal = Number(localStorage.getItem("yearlyGoal"));
+if(!yearlyGoal) yearlyGoal = 12; // 初期値（好きに変えてOK）
+let enableGoal = localStorage.getItem("enableGoal");
+enableGoal = enableGoal === null ? true : (enableGoal === "true");//年間読破目標設定
+
+// UI設定（保存＋初期値）
+let uiSettings = {
+  recent: true,
+  summary: true,
+  tags: true,
+  type: true,
+  ...JSON.parse(localStorage.getItem("uiSettings") || "{}")
 };
 
-/* ══════════════════════════════════════
-   アプリ状態（インメモリキャッシュ）
-══════════════════════════════════════ */
-let appData = JSON.parse(JSON.stringify(DEFAULT_DATA)); // deep copy
+let uiMode = localStorage.getItem("uiMode") || "on";
+// "on" or "off"
+let recentViewMode = localStorage.getItem("recentViewMode") || "card";
+// "card" or "spine"
 
-/* Firebaseからリアルタイム同期 */
-function setupRealtimeSync() {
-  if (!db) return;
-  onValue(ref(db, '/'), snap => {
-    const val = snap.val();
-    if (val) {
-      appData = mergeDeep(JSON.parse(JSON.stringify(DEFAULT_DATA)), val);
-    } else {
-      // 初回：デフォルトデータをFirebaseに書き込む
-      set(ref(db, '/'), DEFAULT_DATA);
-    }
-    refreshCurrentView();
-  }, err => {
-    setSyncStatus('🔴 同期エラー');
-    console.error('DB sync error:', err);
+
+
+
+
+
+
+
+
+//🟩②====データ取得・保存（load・save）====
+//基本的にGet系はここ、go
+
+//最近読んだ3冊====
+function getRecentBooks(limit=3){
+  return [...books]
+    .filter(b => b.dates && b.dates.length)
+    .sort((a,b)=>{
+      const da = a.dates[a.dates.length-1];
+      const db = b.dates[b.dates.length-1];
+      return db.localeCompare(da);
+    })
+    .slice(0, limit);
+}
+//========
+
+
+// ページ切替
+function go(page){
+  document.querySelectorAll("[id^='page-']").forEach(el=>{
+    el.style.display = "none";
   });
-}
 
-function mergeDeep(target, source) {
-  for (const key of Object.keys(source || {})) {
-    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
-      target[key] = target[key] || {};
-      mergeDeep(target[key], source[key]);
-    } else {
-      target[key] = source[key];
-    }
+  const target = document.getElementById("page-" + page);
+  if(target) target.style.display = "block";
+
+  // ここ追加
+  updateUIVisibility(page);
+
+  if(page === 'settings') renderSettings();
+  if(page === 'home') renderHome();
+  if(page === 'series') renderSeries();
+  if(page === 'characters') renderCharacters();
+  if(page === 'calendar') renderCalendar();
+}
+//========
+
+
+//タグ色=====
+function getTagColor(tagId){
+  const t = tagMaster.find(x => x.id === tagId);
+  return t?.color || "#999";
+}
+//========
+
+//背表紙（単色）
+function getBookColor(book){
+  if(Array.isArray(book.tagIds) && book.tagIds.length){
+    return getTagColor(book.tagIds[0]);
   }
-  return target;
-}
+  return "#ccc";
+}//========
 
-async function dbSet(path, value) {
-  if (db) {
-    await set(ref(db, path), value);
+
+//文字色対策
+function getTextColor(bg){
+  return "#fff"; // とりあえず白固定でもOK
+}
+//========
+
+//====常に正しい本を取得
+function getBookById(id){
+	return books.find(x => String(x.id) === String(id));
+}
+//========
+
+
+//========
+function getFavLabel(val){
+	if(val >= 4) return "👑";
+	return "★".repeat(val || 0);
+	}
+//========
+
+
+
+//ラベル表示====
+function getViewLabel(){
+  return {
+    card:"カード",
+    shelf:"本棚",
+    "shelf-series":"シリーズ"
+  }[viewMode];
+}
+//========
+
+//========
+function getColorLabel(){
+  return {
+    single:"単色",
+    gradient:"グラデ",
+    split:"分割",
+    stripe:"目印"
+  }[colorMode];
+}
+//========
+
+//========
+function getSortLabel(){
+  return {
+    title:"名前",
+    fav:"評価",
+    date:"日付"
+  }[sortKey];
+}
+//========
+
+//========
+function getRecentViewLabel(){
+  return {
+    card:"カード",
+    spine:"背表紙"
+  }[recentViewMode];
+}
+//========
+
+
+//読書状態ステータス
+function getReadStatus(book){
+	if(book.type === "wish") return "ウィッシュ";
+
+  const count = book.dates?.length || 0;
+  if(count === 0) return "🔖未読";
+  if(count === 1) return "✔️読了";
+  return `🔂再読 ${count}回`;
+}
+//========
+
+
+//========
+function getHeatColor(count){
+  if(count === 0) return "";
+  if(count === 1) return "#f8d8c6"; //乙女
+  if(count === 2) return "#f7ed92"; //承和
+  if(count === 3) return "#fddb5d"; //くちなし
+  if(count === 4) return "#aacf53"; //萌葱
+  return "#78ccd2"; //白群
+  }
+//========
+
+
+//今年・今月◯冊取得
+function getMonthlyCount(){
+  const now = new Date();
+  const ym = now.toISOString().slice(0,7);
+
+  let count = 0;
+  books.forEach(b=>{
+    (b.dates || []).forEach(d=>{
+      if(d.startsWith(ym)) count++;
+    });
+  });
+  return count;
+}
+//========
+
+//========
+function getYearlyCount(){
+  const now = new Date();
+  const y = now.getFullYear();
+
+  let count = 0;
+  books.forEach(b=>{
+    (b.dates || []).forEach(d=>{
+      if(d.startsWith(String(y))) count++;
+    });
+  });
+
+  return count;
+}
+//========
+
+//読了回数バッジ
+function createReadBadge(book){
+  const count = book.dates?.length || 0;
+
+  const span = document.createElement('span');
+
+  // 共通スタイル
+  span.style.padding = "2px 8px";
+  span.style.fontSize = "12px";
+  span.style.borderRadius = "999px";
+  span.style.marginLeft = "6px";
+
+  if(count === 0){
+    span.textContent = "🔖未読";
+    span.style.background = "#eee";
+    span.style.color = "#666";
+  } else if(count === 1){
+    span.textContent = "✔️読了";
+    span.style.background = "#4a8d61";
+    span.style.color = "#fff";
   } else {
-    // オフライン時はローカルキャッシュのみ更新
-    setNestedValue(appData, path, value);
-    refreshCurrentView();
+    span.textContent = `再読 ${count}回`;
+    span.style.background = "#4c808d";
+    span.style.color = "#fff";
   }
-}
 
-async function dbUpdate(path, updates) {
-  if (db) {
-    await update(ref(db, path), updates);
-  } else {
-    for (const [k, v] of Object.entries(updates)) {
-      setNestedValue(appData, path + '/' + k, v);
+  return span;
+}
+//==========
+
+//========カレンダー
+function getReadingMap(){
+  const map = {};
+
+  books.forEach(b=>{
+    (b.dates || []).forEach(d=>{
+      map[d] = (map[d] || 0) + 1;
+    });
+  });
+
+  return map;
+}
+//========
+
+
+
+
+
+
+//🟨③====ロジック====
+//並び替え・フィルタ、計算、sortgetLastDate、データをいじるだけ
+
+//完全UIOFFフラグ====
+function isUIAllOff(){
+  return !uiSettings.recent &&
+         !uiSettings.summary &&
+         !uiSettings.tags &&
+         !uiSettings.type;
+}
+//========
+
+//ボタンエフェクト
+function pressEffect(el){
+	el.style.transform = "scale(0.95)";
+	setTimeout(()=>{
+		el.style.transform = "scale(1)";
+	},100);
+}
+//========
+
+//補助=======
+function getLastDate(book){
+  if(!book.dates || !book.dates.length) return "未読";
+  return book.dates[book.dates.length-1];
+}
+//========
+
+
+//カレンダー月送り
+function changeMonth(diff){
+  const y = currentMonth.getFullYear();
+  const m = currentMonth.getMonth();
+  
+  currentMonth = new Date(y, m + diff, 1);
+  renderCalendar();
+}
+//=========
+
+
+//========
+function changeGoal(val){
+  yearlyGoal = Number(val) || 0;
+  localStorage.setItem("yearlyGoal", yearlyGoal);
+
+  renderHome(); // 即反映
+}
+//========
+
+//本生成の関数====
+function createBookSpine(b){
+  const d = document.createElement('div');
+
+  const c1 = getTagColor(b.tagIds?.[0]);
+  const c2 = getTagColor(b.tagIds?.[1] || b.tagIds?.[0]);
+  const c3 = getTagColor(b.tagIds?.[2] || b.tagIds?.[0]);
+
+  const base = 15;
+  const extra = Math.min((b.title || "").length * 1.5, 40);
+
+  d.style.width = (base + extra) + "px";
+  d.style.height = "130px";
+  d.style.margin = "1px";
+  d.style.borderRadius = "3px 5px 5px 3px";
+  d.style.display = "flex";
+  d.style.flexDirection = "column";
+  d.style.borderRight = "3px solid rgba(0, 0, 0, 0.2)";
+  d.style.overflow = "visible";
+
+  if(colorMode === "single") d.style.background = c1;
+  if(colorMode === "gradient"){
+  d.style.background = `linear-gradient(135deg, ${c1}, ${c2})`;
+}
+  if(colorMode === "split") {d.style.background = `linear-gradient(${c1} 0%, ${c1} 75%, ${c2} 75%)`;}
+  if(colorMode === "stripe"){
+    d.style.background = `linear-gradient(
+      ${c1} 0%, ${c1} 3%,
+      ${c3} 3%, ${c3} 6%,
+      ${c1} 6%, ${c1} 75%,
+      ${c2} 75%, ${c2} 100%
+    )`;
+  }
+  
+  if(b.type === "wish"){
+	d.style.opacity = "0.8";
+	}
+
+  const title = document.createElement('div');
+  title.textContent = b.title;
+  
+  //縦書き
+  title.style.writingMode = "vertical-rl"; //!
+  title.style.textOrientation = "mixed";
+  
+  //レイアウト安定
+  title.style.display = "flex"; //!
+  title.style.width = "100%";
+  title.style.height = "100%";
+
+  //はみ出し対策
+  title.style.overflow = "visible";//visible:hidden
+  title.style.wordBreak = "break-all";
+  
+  //見た目調整
+  title.style.fontSize = "9px"; //!
+  title.style.lineHeight = "1.2";
+  title.style.paddingTop = "8px";
+  title.style.letterSpacing = "0.05em";
+  
+  //色
+  title.style.color = "#fff"; //!
+  
+//  title.style.flex = "1";
+  title.style.alignItems = "center"; //! flex-start
+  title.style.justifyContent = "flex-start"; //! center
+  title.style.textAlign = "left";
+//  title.style.textOverflow = "ellipsis";
+//  title.style.whiteSpace = "nowrap";
+  title.style.paddingBottom = "4px";
+//  title.style.maxHeight = "100%";
+
+  const fav = document.createElement('div');
+  const val = Math.min(b.fav || 0, 4);
+  fav.textContent = val === 4 ? "👑" : "★".repeat(val);
+  fav.style.fontSize = "8px";
+  fav.style.color = "#fff";
+  fav.style.writingMode = "vertical-rl";
+  fav.style.height = "30px";
+  fav.style.display = "flex";
+  fav.style.alignItems = "center";
+  fav.style.justifyContent = "flex-end";
+  fav.style.paddingBottom = "5px";
+
+  d.appendChild(title);
+  d.appendChild(fav);
+
+  d.onclick = ()=> openDetail(b);
+
+//評価を背表紙にうっすら表示
+const badge = document.createElement("div");
+//badge.textContent = getFavLabel(b.fav);
+badge.style.position = "absolute";
+badge.style.bottom = "2px";
+badge.style.right = "2px";
+badge.style.fontSize = "10px";
+badge.style.opacity = "0.8";
+badge.style.writingMode = "vertical-rl";
+badge.style.height = "30px";
+badge.style.alignItems = "center";
+badge.style.justifyContent = "flex-end";
+badge.style.paddingBottom = "5px";
+
+d.style.position = "relative";
+d.appendChild(badge);
+
+
+  return d;
+}
+//========
+
+
+//=====ソートここから
+function sortBooks(list){
+  return [...list].sort((a,b)=>{
+    let result = 0;
+
+    if(sortKey === "title"){
+      result = (a.title || "").localeCompare(
+        (b.title || ""),
+        'ja',
+        { numeric: true }
+      );
     }
-    refreshCurrentView();
-  }
-}
 
-async function dbRemove(path) {
-  if (db) await remove(ref(db, path));
-  else {
-    deleteNestedValue(appData, path);
-    refreshCurrentView();
-  }
-}
+    if(sortKey === "fav"){
+      result = (a.fav || 0) - (b.fav || 0);
+    }
 
-function getNestedValue(obj, path) {
-  return path.split('/').filter(Boolean).reduce((o, k) => o?.[k], obj);
-}
-function setNestedValue(obj, path, val) {
-  const keys = path.split('/').filter(Boolean);
-  let cur = obj;
-  for (let i = 0; i < keys.length - 1; i++) {
-    if (!cur[keys[i]]) cur[keys[i]] = {};
-    cur = cur[keys[i]];
-  }
-  cur[keys[keys.length - 1]] = val;
-}
-function deleteNestedValue(obj, path) {
-  const keys = path.split('/').filter(Boolean);
-  let cur = obj;
-  for (let i = 0; i < keys.length - 1; i++) {
-    cur = cur?.[keys[i]];
-    if (!cur) return;
-  }
-  delete cur[keys[keys.length - 1]];
-}
+    if(sortKey === "date"){
+      result = (a.dates?.[0] || "").localeCompare(b.dates?.[0] || "");
+    }
 
-function setSyncStatus(msg) {
-  const el = g('sync-status');
-  if (el) el.textContent = msg;
-}
-
-window.initFirebaseData = function() {
-  confirmDlg('全データを初期化しますか？\n元には戻せません。', async () => {
-    await dbSet('/', DEFAULT_DATA);
-    toast('初期化しました', 'info');
+    return sortOrder === "asc" ? result : -result;
   });
-};
-
-/* ══════════════════════════════════════
-   ルーティング
-══════════════════════════════════════ */
-let currentView = 'home';
-
-function goView(view) {
-  currentView = view;
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.page-nav a').forEach(a => {
-    a.classList.toggle('active', a.dataset.view === view);
-  });
-  const el = g('view-' + view);
-  if (el) el.classList.add('active');
-  g('header-title').textContent = {
-    home:'⭐ ポイント管理', daily:'📅 デイリー',
-    summary:'📊 まとめ', trends:'📉 推移', settings:'⚙️ 設定'
-  }[view] || '⭐ ポイント管理';
-  renderView(view);
-  window.scrollTo(0, 0);
 }
+//========
 
-function refreshCurrentView() { renderView(currentView); }
 
-function renderView(view) {
-  if (view === 'home')     renderHome();
-  if (view === 'daily')    renderDaily();
-  if (view === 'summary')  renderSummary();
-  if (view === 'trends')   renderTrends();
-  if (view === 'settings') renderSettingsView();
+//========
+function markAsRead(book){
+  const today = new Date().toISOString().slice(0,10);
+
+  book.type = "normal";
+
+  if(!Array.isArray(book.dates)){
+    book.dates = [];
+  }
+
+  book.dates.push(today);
+
+  saveData();
+  openDetail(book);
 }
+//========
 
-// nav リンク
-document.querySelectorAll('.page-nav a').forEach(a => {
-  a.addEventListener('click', e => {
-    e.preventDefault();
-    goView(a.dataset.view);
-  });
-});
 
-// toggle
-document.addEventListener('click', e => {
-  const hd = e.target.closest('.toggle-hd');
-  if (hd) hd.closest('.toggle')?.classList.toggle('open');
-});
-// モーダル背景クリック
-document.addEventListener('click', e => {
-  if (e.target.classList.contains('modal-bg')) e.target.classList.remove('open');
-});
 
-window.goView = goView;
 
-/* ══════════════════════════════════════
-   ホーム
-══════════════════════════════════════ */
-function renderHome() {
-  const s = appData.settings;
-  const pph = s.points_per_hour, ypp = s.yen_per_point;
-  [1, 2].forEach(uid => {
-    const ukey = uid === 1 ? 'son' : 'daughter';
-    const pfx  = uid === 1 ? 'son' : 'daughter';
-    const u    = appData.users[ukey] || {};
-    const daily = u.daily || {};
-    const tp = Object.values(daily).reduce((s, d) => s + (d.total_points || 0), 0);
-    const tt = Object.values(daily).reduce((s, d) => s + (d.total_time_minutes || 0), 0);
-    const h = Math.floor(tt / 60), m = tt % 60;
-    const ep = tp + h * pph;
-    setText(`${pfx}-time`, h > 0 ? (m > 0 ? `${h}h${m}m` : `${h}時間`) : `${m}分`);
-    setText(`${pfx}-pts`,  tp + 'P');
-    setText(`${pfx}-yen`,  (ep * ypp).toLocaleString() + '円');
-  });
-  renderWeekCal(1, 'cal-son');
-  renderWeekCal(2, 'cal-daughter');
-  g('past-date').value = todayStr();
-}
 
-function renderWeekCal(uid, containerId) {
-  const cal = g(containerId);
-  if (!cal) return;
-  cal.innerHTML = '';
-  const today = todayStr();
-  const DOW   = ['日','月','火','水','木','金','土'];
-  const dow0  = new Date(today + 'T00:00:00').getDay();
-  const sun   = offsetDate(today, -dow0);
-  const ukey  = uid === 1 ? 'son' : 'daughter';
-  const daily = appData.users[ukey]?.daily || {};
-  const items = appData.items || [];
-  const keyMap = {};
-  items.forEach(it => { if (it.item_key) keyMap[it.id] = it.item_key; });
 
-  for (let i = 0; i < 7; i++) {
-    const d   = offsetDate(sun, i);
-    const rec = daily[d] || {};
-    const states = rec.item_states || {};
-    const keys = Object.entries(states)
-      .filter(([, st]) => (st.press_count || 0) > 0)
-      .map(([id]) => keyMap[parseInt(id)])
-      .filter(Boolean);
 
-    const hw = keys.includes('homework');
-    const sm = keys.includes('smilezemi');
-    const rc = keys.includes('renrakucho');
-    const hk = keys.includes('hikidashi');
 
-    const dow  = new Date(d + 'T00:00:00').getDay();
-    const cls  = ['cal-day',
-      dow === 0 ? 'sun' : '', dow === 6 ? 'sat' : '',
-      d === today ? 'today' : '',
-      hw && sm ? 'bg-green' : sm ? 'bg-red' : hw ? 'bg-yellow' : '',
-    ].filter(Boolean).join(' ');
+//🟧④====UI描画（render系）====
+//ページ毎にまとめてOKなエリア
 
-    const a   = document.createElement('a');
-    a.className = cls;
-    a.href      = '#daily';
-    a.innerHTML = `<span class="dlabel">${DOW[dow]}</span><span class="dnum">${parseInt(d.split('-')[2])}</span><span class="dicons">${rc?'✏️':''}${hk?'👔':''}</span>`;
-    a.addEventListener('click', e => { e.preventDefault(); goDaily(uid, d); });
-    cal.appendChild(a);
+
+//ボタンの見た目チップ化
+function styleChip(btn, active=false){
+  btn.style.display = "inline-block";
+  btn.style.padding = "4px 10px";
+  btn.style.margin = "4px 4px 4px 0";
+  btn.style.fontSize = "13px";
+  btn.style.borderRadius = "999px";
+  btn.style.cursor = "pointer";
+  btn.style.border = "1px solid #333";
+
+  if(active){
+    btn.style.background = "#333";
+    btn.style.color = "#fff";
+  } else {
+    btn.style.background = "transparent";
+    btn.style.color = "#333";
   }
 }
+//========
 
-window.goDaily = function(uid, date) {
-  dailyUser = uid;
-  dailyDate = date || todayStr();
-  goView('daily');
-};
+//====
+function renderViewMode(targetId = "view-mode"){
+  const el = document.getElementById(targetId);
+  if(!el) return;
 
-/* ══════════════════════════════════════
-   デイリー
-══════════════════════════════════════ */
-let dailyUser = 1;
-let dailyDate = todayStr();
+  el.innerHTML = "";
 
-function getDayData() {
-  const ukey = dailyUser === 1 ? 'son' : 'daughter';
-  const u    = appData.users[ukey] || {};
-  if (!u.daily) u.daily = {};
-  if (!u.daily[dailyDate]) {
-    u.daily[dailyDate] = { total_points:0, total_time_minutes:0, item_states:{}, point_logs:{}, manual_logs:{} };
-  }
-  return u.daily[dailyDate];
-}
+  const modes = [
+    { id: "card", label: "カード" },
+    { id: "list", label: "リスト（２列）"},
+    { id: "shelf", label: "本棚" },
+    { id: "shelf-series", label: "シリーズ" }
+  ];
 
-function renderDaily() {
-  const ukey = dailyUser === 1 ? 'son' : 'daughter';
-  setText('daily-user-badge', dailyUser === 1 ? '👦 息子' : '👧 娘');
-  setText('daily-date-badge', dailyDate.replace(/-/g,'/') + '（' + dowJa(dailyDate) + '）');
-
-  const day   = getDayData();
-  const daily = appData.users[ukey]?.daily || {};
-  const pts   = day.total_points        || 0;
-  const mins  = day.total_time_minutes  || 0;
-  const cp    = Object.values(daily).reduce((s, d) => s + (d.total_points || 0), 0);
-  const ct    = Object.values(daily).reduce((s, d) => s + (d.total_time_minutes || 0), 0);
-
-  setText('today-pts',  (pts >= 0 ? '+' : '') + pts + 'P');
-  setText('today-time', fmtMin(mins));
-  setText('cum-pts',    cp + 'P');
-  setText('cum-time',   fmtMin(ct));
-  renderItems();
-  renderLogs();
-}
-
-function renderItems() {
-  const grid  = g('items-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-  const ukey  = dailyUser === 1 ? 'son' : 'daughter';
-  const col   = dailyUser === 1 ? 'visible_son' : 'visible_daughter';
-  const items = (appData.items || []).filter(i => i[col]).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
-  const day   = getDayData();
-  const states= day.item_states || {};
-  const pos   = items.filter(i => i.is_positive);
-  const neg   = items.filter(i => !i.is_positive);
-
-  buildItemBtns(grid, pos, states);
-  if (neg.length) {
-    const sep = document.createElement('div');
-    sep.className = 'neg-sep';
-    sep.textContent = 'マイナス項目';
-    grid.appendChild(sep);
-    buildItemBtns(grid, neg, states);
-  }
-}
-
-function buildItemBtns(grid, items, states) {
-  items.forEach(item => {
-    const sid   = String(item.id);
-    const st    = states[sid] || { press_count:0, point_count:0, time_count:0 };
-    const count = st.press_count || 0;
-    const done  = count > 0;
-    const pos   = item.is_positive;
-
+  modes.forEach(m=>{
     const btn = document.createElement('button');
-    btn.className = ['item-btn', done?(pos?'done':'neg-item done'):(pos?'':'neg-item')].filter(Boolean).join(' ');
-    btn.dataset.itemId = sid;
+    btn.textContent = m.label;
+    btn.className = "setting-btn";
 
-    if (done && pos)  btn.appendChild(mkEl('span','done-mark','✓'));
-    if (count > 1)    btn.appendChild(mkEl('span','cnt-badge', count+'×'));
-    btn.appendChild(mkEl('div','item-name', item.name));
-
-    const meta = document.createElement('div');
-    meta.className = 'item-meta';
-    const bp = item.base_point|0, bt = item.base_time|0;
-    if (bp > 0) meta.appendChild(mkEl('span','badge-p','+'+bp+'P'));
-    if (bp < 0) meta.appendChild(mkEl('span','badge-n', bp+'P'));
-    if (bt > 0) meta.appendChild(mkEl('span','badge-t','+'+fmtMin(bt)));
-    if (bt < 0) meta.appendChild(mkEl('span','badge-n', fmtMin(bt)));
-    btn.appendChild(meta);
-
-    btn.addEventListener('click', () => pressItem(sid));
-    grid.appendChild(btn);
-  });
-}
-
-async function pressItem(itemId) {
-  const item = (appData.items||[]).find(i => String(i.id) === String(itemId));
-  if (!item) return;
-  const btn = document.querySelector(`.item-btn[data-item-id="${itemId}"]`);
-  if (btn) btn.disabled = true;
-
-  const ukey  = dailyUser === 1 ? 'son' : 'daughter';
-  const day   = getDayData();
-  const sid   = String(itemId);
-  const st    = day.item_states[sid] || { press_count:0, point_count:0, time_count:0 };
-
-  // 制限チェック
-  try {
-    // 週1回
-    if (item.weekly_limit) {
-      const dow0 = new Date(dailyDate+'T00:00:00').getDay();
-      const sun  = offsetDate(dailyDate, -dow0);
-      const sat  = offsetDate(sun, 6);
-      const daily= appData.users[ukey]?.daily || {};
-      for (const [d, rec] of Object.entries(daily)) {
-        if (d >= sun && d <= sat && d !== dailyDate) {
-          if ((rec.item_states?.[sid]?.press_count || 0) > 0) throw '週1回の制限です';
-        }
-      }
-      if (st.press_count > 0) throw '週1回の制限です（今週分）';
+    if(m.id === viewMode){
+      btn.classList.add("active");
     }
-    if (item.daily_limit && st.press_count > 0) throw '今日はもう押せません';
-    if (item.max_per_day !== null && item.max_per_day !== undefined && st.press_count >= item.max_per_day)
-      throw `1日${item.max_per_day}回の制限です`;
 
-    let add_p = item.base_point|0;
-    let add_t = item.base_time|0;
-    if (item.max_point_per_day !== null && item.max_point_per_day !== undefined && st.point_count >= item.max_point_per_day) add_p = 0;
-    if (item.max_time_per_day  !== null && item.max_time_per_day  !== undefined && st.time_count  >= item.max_time_per_day)  add_t = 0;
-    if (add_p === 0 && add_t === 0 && (item.max_point_per_day !== null || item.max_time_per_day !== null))
-      throw '今日の上限に達しています';
+    btn.onclick = ()=>{
+      viewMode = m.id;
+      localStorage.setItem("viewMode", viewMode);
 
-    const ts     = new Date().toISOString();
-    const logId  = 'pl_' + Date.now();
-    const newSt  = {
-      press_count: st.press_count + 1,
-      point_count: st.point_count + (add_p !== 0 ? 1 : 0),
-      time_count:  st.time_count  + (add_t !== 0 ? 1 : 0),
+      renderHome();                 // これ必須
+      renderViewMode(targetId);     // 見た目更新
     };
 
-    const basePath = `users/${ukey}/daily/${dailyDate}`;
-    await dbUpdate(basePath, {
-      total_points:      (day.total_points||0)       + add_p,
-      total_time_minutes:(day.total_time_minutes||0)  + add_t,
-      [`item_states/${sid}`]: newSt,
-      [`point_logs/${logId}`]: { id:logId, item_id:parseInt(itemId), item_name:item.name, points_added:add_p, time_added:add_t, timestamp:ts },
-    });
-
-    if (btn) { btn.classList.add('anim-pop'); setTimeout(()=>btn?.classList.remove('anim-pop'), 300); }
-    toast(item.name + ' ✓', 'ok');
-
-    // 明日の服ボーナス
-    if (item.item_key === 'ashita_no_fuku' && st.press_count === 0) {
-      await checkClothesBonus(ukey, add_p);
-    }
-  } catch (errMsg) {
-    toast(errMsg, 'ng');
-  }
-  if (btn) btn.disabled = false;
-}
-
-async function checkClothesBonus(ukey, addPts) {
-  const u     = appData.users[ukey] || {};
-  const count = u.clothes_count || 0;
-  const last  = u.clothes_last_date;
-  const today = dailyDate;
-  // 同じ日に2回カウントしない
-  if (last === today) return;
-  // 累計でインクリメント（連続チェックなし）
-  const newCount = count + 1;
-  if (newCount >= 7) {
-    // 7日累計達成 → ボーナス付与・リセット
-    const day     = getDayData();
-    const ts      = new Date().toISOString();
-    const logId   = 'pl_bonus_' + Date.now();
-    const basePath= `users/${ukey}/daily/${dailyDate}`;
-    await dbUpdate(basePath, {
-      total_points: (day.total_points||0) + addPts + 10,
-      [`point_logs/${logId}`]: { id:logId, item_id:0, item_name:'明日の服ボーナス（累計7日達成）', points_added:10, time_added:0, timestamp:ts },
-    });
-    await dbUpdate(`users/${ukey}`, { clothes_count:0, clothes_last_date:today });
-    setTimeout(() => toast('🎉 累計7日達成！ボーナス +10P', 'info', 4000), 600);
-  } else {
-    await dbUpdate(`users/${ukey}`, { clothes_count:newCount, clothes_last_date:today });
-  }
-}
-
-function renderLogs() {
-  const list = g('log-list');
-  if (!list) return;
-  const day = getDayData();
-  const pl  = Object.values(day.point_logs  || {}).map(l => ({ ...l, _t:'point',  pts:l.points_added|0, mins:l.time_added|0,    name:l.item_name||'' }));
-  const ml  = Object.values(day.manual_logs || {}).map(l => ({ ...l, _t:'manual', pts:l.points|0,       mins:l.time_minutes|0,  name:l.description||'' }));
-  const all = [...pl, ...ml].sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
-
-  list.innerHTML = '';
-  if (!all.length) { list.innerHTML = '<li class="empty">まだ記録がありません</li>'; return; }
-  all.forEach(log => {
-    const li  = document.createElement('li');
-    li.className = 'log-item';
-    const ph  = log.pts  !== 0 ? `<span class="${log.pts >0?'lp':'ln'}">${log.pts >0?'+'+log.pts+'P':log.pts+'P'}</span>` : '';
-    const th  = log.mins !== 0 ? `<span class="${log.mins>0?'lt':'ln'}">${log.mins>0?'+':''}<b>${fmtMin(log.mins)}</b></span>` : '';
-    const ts  = log.timestamp ? '＠' + log.timestamp.slice(0,16).replace('T',' ') : '';
-    li.innerHTML = `<span class="log-text">${[ph,th].filter(Boolean).join(' ')} ：${log.name}：<span class="text-xs text-lt">${ts}</span></span><button class="log-del" data-type="${log._t}" data-id="${log.id}">✕</button>`;
-    list.appendChild(li);
+    el.appendChild(btn);
   });
 }
+//========
 
-// ログ削除
-document.getElementById('log-list').addEventListener('click', e => {
-  const btn = e.target.closest('.log-del');
-  if (!btn) return;
-  confirmDlg('このログを削除しますか？', async () => {
-    const type  = btn.dataset.type;
-    const logId = btn.dataset.id;
-    const ukey  = dailyUser === 1 ? 'son' : 'daughter';
-    const day   = getDayData();
-    const base  = `users/${ukey}/daily/${dailyDate}`;
 
-    if (type === 'point') {
-      const log = day.point_logs?.[logId];
-      if (!log) return;
-      const p = log.points_added|0, t = log.time_added|0;
-      const sid = String(log.item_id || 0);
-      const st  = day.item_states?.[sid];
-      const newSt = st ? {
-        press_count: Math.max(0, (st.press_count||0) - 1),
-        point_count: Math.max(0, (st.point_count||0) - (p !== 0 ? 1 : 0)),
-        time_count:  Math.max(0, (st.time_count ||0) - (t !== 0 ? 1 : 0)),
-      } : null;
+// ⬛︎ホーム（本のリスト表示）HOME====
+function renderHome(){
+  const el = document.getElementById('page-home');
+  if(!el) return;
 
-      if (newSt && newSt.press_count === 0) {
-        await dbRemove(`${base}/item_states/${sid}`);
-      } else if (newSt) {
-        await dbUpdate(`${base}/item_states`, { [sid]: newSt });
-      }
-      await dbUpdate(base, {
-        total_points:      (day.total_points||0)      - p,
-        total_time_minutes:(day.total_time_minutes||0) - t,
-        [`point_logs/${logId}`]: null,
-      });
-    } else {
-      const log = day.manual_logs?.[logId];
-      if (!log) return;
-      await dbUpdate(base, {
-        total_points:      (day.total_points||0)      - (log.points||0),
-        total_time_minutes:(day.total_time_minutes||0) - (log.time_minutes||0),
-        [`manual_logs/${logId}`]: null,
-      });
-    }
-    toast('削除しました');
-  });
+  // UI込みで再構築
+  el.innerHTML = `
+    <div id="home-top">
+      <div class="search-area">
+        <input
+          type="text"
+          id="search"
+          placeholder="タイトル検索"
+          oninput="renderHome()"
+        >
+        <div id="search-suggest"></div>
+      </div>
+      <button onclick="openAddBookModal()" class="add-btn">
+        ＋ 本を追加
+      </button>
+    </div>
+
+    <div id="home-main"></div>
+  `;
+
+  // UI描画
+  renderSummary();
+  renderTagFilter();
+  renderTypeFilter();
+  renderRecentBooks();
+
+  const main = document.getElementById("home-main");
+
+  //🔍 検索
+  const keyword =
+  (document.getElementById("search")?.value || "")
+  .toLowerCase();
+
+  // 検索候補
+  const suggestEl = document.getElementById("search-suggest");
+
+  if(suggestEl){
+
+  if(keyword){
+
+    const suggestions = books
+  .filter(b =>
+    (b.title || "")
+      .toLowerCase()
+      .includes(keyword)
+  )
+  .slice(0,5);
+
+  suggestEl.innerHTML = suggestions.map(b=>`
+    <div class="search-item"
+         onclick="openDetailById('${b.id}')">
+      ${b.title}
+    </div>
+  `).join("");
+
+  }else{
+    suggestEl.innerHTML = "";
+  }
+}
+
+
+// フィルタ
+const filtered = books.filter(b=>{
+
+  // タイトル検索
+  const matchTitle =
+    (b.title || "")
+      .toLowerCase()
+      .includes(keyword);
+
+  // タグ
+  const matchTag =
+    !selectedTagId ||
+    (Array.isArray(b.tagIds) &&
+     b.tagIds.includes(selectedTagId));
+
+  // タイプ
+  const matchType =
+    selectedType === "all" ||
+    ((b.type || "normal") === selectedType);
+
+  return matchTitle && matchTag && matchType;
 });
 
-// 手動追加
-window.setSign = function(btn) {
-  document.querySelectorAll('.sign-toggle button').forEach(b => b.classList.remove('on-pos','on-neg'));
-  btn.classList.add(btn.dataset.val === '+' ? 'on-pos' : 'on-neg');
-  g('sign-val').value = btn.dataset.val;
-};
-window.setDesc = function(chip) { g('m-desc').value = chip.textContent; };
+  //  ソート
+  const sorted = sortBooks(filtered);
 
-window.submitManual = async function() {
-  const sign = g('sign-val').value || '+';
-  let pts    = parseInt(g('m-pts').value || '0');
-  let mins   = parseInt(g('m-mins').value || '0');
-  const desc = g('m-desc').value.trim() || '手動追加';
-  if (pts === 0 && mins === 0) { toast('ポイントか時間を入力してください','ng'); return; }
-  if (sign === '-') { pts = -Math.abs(pts); mins = -Math.abs(mins); }
-  else              { pts =  Math.abs(pts); mins =  Math.abs(mins); }
-
-  const ukey  = dailyUser === 1 ? 'son' : 'daughter';
-  const day   = getDayData();
-  const ts    = new Date().toISOString();
-  const logId = 'ml_' + Date.now();
-  const base  = `users/${ukey}/daily/${dailyDate}`;
-
-  await dbUpdate(base, {
-    total_points:      (day.total_points||0)      + pts,
-    total_time_minutes:(day.total_time_minutes||0) + mins,
-    [`manual_logs/${logId}`]: { id:logId, points:pts, time_minutes:mins, description:desc, timestamp:ts },
-  });
-  closeModal('manual-modal');
-  ['m-pts','m-mins','m-desc'].forEach(id => { const el=g(id); if(el) el.value=''; });
-  toast('追加しました ✓','ok');
-};
-
-// 日付ナビ
-g('btn-prev').addEventListener('click',  () => { dailyDate = offsetDate(dailyDate,-1); renderDaily(); });
-g('btn-next').addEventListener('click',  () => { dailyDate = offsetDate(dailyDate,+1); renderDaily(); });
-g('btn-today').addEventListener('click', () => { dailyDate = todayStr(); renderDaily(); });
-
-/* ══════════════════════════════════════
-   サマリー
-══════════════════════════════════════ */
-let sumUser = 1;
-window.setSumUser = function(uid) {
-  sumUser = uid;
-  g('sum-tab-1').classList.toggle('active', uid===1);
-  g('sum-tab-2').classList.toggle('active', uid===2);
-  renderSummary();
-};
-
-function renderSummary() {
-  const ukey = sumUser === 1 ? 'son' : 'daughter';
-  const u    = appData.users[ukey] || {};
-  const s    = appData.settings;
-  const pph  = s.points_per_hour, ypp = s.yen_per_point;
-  const daily= u.daily || {};
-  const tp   = Object.values(daily).reduce((s, d) => s + (d.total_points||0), 0);
-  const tt   = Object.values(daily).reduce((s, d) => s + (d.total_time_minutes||0), 0);
-  const h    = Math.floor(tt/60), m = tt%60;
-  const ep   = tp + h * pph;
-
-  setText('sum-pts',  tp + 'P');
-  setText('sum-time', h>0?(m>0?`${h}h${m}m`:`${h}時間`):`${m}分`);
-  setText('sum-yen',  (ep * ypp).toLocaleString() + '円');
-
-  const cnt = u.clothes_count || 0;
-  setText('clothes-num', cnt + ' / 7日');
-  const dotsWrap = g('clothes-dots');
-  if (dotsWrap) {
-    dotsWrap.innerHTML = '';
-    for (let i=1;i<=7;i++) {
-      const d = document.createElement('div');
-      d.className = 'dot'+(i<=cnt?' on':'');
-      // 数字なし・シンプルな●○ゲージ
-      dotsWrap.appendChild(d);
-    }
+  //  表示分岐
+  if(viewMode === "shelf"){
+    renderShelf(main, sorted);
+    return;
   }
-  renderExList(Object.values(u.exchange_logs||{}).sort((a,b)=>b.timestamp>a.timestamp?1:-1));
+
+  if(viewMode === "shelf-series"){
+    renderSeriesShelf(main, sorted);
+    return;
+  }
+
+  if(viewMode === "list"){
+    renderList(main, sorted);
+    return;
+  }
+
+  //  カード表示
+  sorted.forEach(b=>{
+    const d = document.createElement('div');
+    d.className = "card";
+
+    d.innerHTML = `
+      <div class="title">${b.title}</div>
+
+      <div class="meta">
+        <span>${getLastDate(b)}</span>
+        <span>${(b.dates?.length || 0)}回</span>
+      </div>
+
+      <div class="fav">${getFavLabel(b.fav)}</div>
+
+      <div class="tags">
+        ${(b.tagIds || []).map(id=>{
+          const t = tagMaster.find(x=>x.id===id);
+          return t ? `<span class="tag" style="background:${t.color}">${t.name}</span>` : "";
+        }).join("")}
+      </div>
+    `;
+
+    d.onclick = ()=> openDetail(b);
+    main.appendChild(d);
+  });
+
+  //  UI表示制御
+  updateUIVisibility("home");
+}
+//========
+
+//本棚背表紙モード
+function renderShelf(el, list){
+  el.innerHTML = "";
+
+  const wrap = document.createElement("div");
+  wrap.style.display = "flex";
+  wrap.style.flexWrap = "wrap";
+  wrap.style.alignItems = "flex-end";
+
+  list.forEach(b=>{
+    const spine = createBookSpine(b);
+    wrap.appendChild(spine);
+  });
+
+  el.appendChild(wrap);
+}
+//========
+
+//背表紙カラーモード変更描画
+function renderColorMode(targetId = "color-mode"){
+  const el = document.getElementById(targetId);
+  if(!el) return;
+
+  el.innerHTML = "";
+
+  const modes = [
+    { id: "single", label: "単色" },
+    { id: "gradient", label: "グラデ" },
+    { id: "split", label: "分割" },
+    { id: "stripe", label: "目印" }
+  ];
+
+  modes.forEach(m=>{
+    const btn = document.createElement('button');
+    btn.textContent = m.label;
+    btn.className = "setting-btn";
+
+    if(m.id === colorMode){
+      btn.classList.add("active");
+    }
+
+    btn.onclick = ()=>{
+      colorMode = m.id;
+      localStorage.setItem("colorMode", colorMode);
+
+      renderHome();              // 
+      renderColorMode(targetId);
+    };
+
+    el.appendChild(btn);
+  });
+}
+//========
+
+
+//シリーズで表示をまとめる
+function renderSeriesShelf(el, sorted){
+  el.innerHTML = "";
+
+  series.forEach(s=>{
+    const relatedBooks = sorted.filter(b =>
+      Array.isArray(s.bookIds) && s.bookIds.includes(b.id)
+    );
+
+    if(!relatedBooks.length) return;
+
+    const title = document.createElement('div');
+    const isOpen = openedSeries[s.id];
+
+    title.textContent =
+      `${isOpen ? "▽" : "▶︎"} ${s.name} (${relatedBooks.length})`;
+
+    title.style.cursor = "pointer";
+
+    title.onclick = ()=>{
+      openedSeries[s.id] = !openedSeries[s.id];
+      renderHome();
+    };
+
+    el.appendChild(title);
+
+    if(isOpen){
+      const box = document.createElement('div');
+      renderShelf(box, relatedBooks);
+      el.appendChild(box);
+    }
+  });
+}
+//========
+
+
+//小カードで最近読んだ本====
+function renderRecentBooks(){
+  const el = document.getElementById("recent-books");
+  if(!el) return;
+
+  // 日付でソート（新しい順）
+  const sorted = [...books]
+    .filter(b => b.dates?.length)
+    .sort((a,b)=>{
+      return getLastDate(b).localeCompare(getLastDate(a));
+    })
+    .slice(0,10);
+
+  el.innerHTML = `
+    <div class="section-title">♫最近読んだ本</div>
+    <div class="carousel" id="recent-carousel"></div>
+  `;
+
+  const box = document.getElementById("recent-carousel");
+
+  sorted.forEach(b=>{
+    const d = document.createElement("div");
+    d.className = "carousel-item";
+
+    d.innerHTML = `
+      <div style="font-weight:bold;">${b.title}</div>
+      <div style="font-size:12px;color:#666;">
+        ${getLastDate(b)}
+      </div>
+      <div style="margin-top:4px;">
+        ${getFavLabel(b.fav)}
+      </div>
+    `;
+
+    d.onclick = ()=> openDetail(b);
+    box.appendChild(d);
+  });
+}
+//========
+
+//カルーセル表示用の本棚
+function renderShelfCarousel(el, sorted){
+
+  el.innerHTML = "";
+
+  const wrap = document.createElement("div");
+  wrap.className = "shelf-scroll";
+
+  sorted.forEach(b=>{
+    const spine = createBookSpine(b);
+    wrap.appendChild(spine);
+  });
+
+  el.appendChild(wrap);
+}
+//========
+
+//========
+function renderRecent(){
+  const el = document.getElementById("home-recent");
+  if(!el) return;
+
+  const list = getRecentBooks();
+
+  if(!list.length){
+    el.innerHTML = `<div style="color:#999;">まだ読了なし</div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="settings-item" onclick="openSettingSelect('recent')">
+  最近の本表示
+  <div class="settings-value">${recentViewMode === "card" ? "カード" : "背表紙"}</div>
+</div>
+  `;
+
+  list.forEach(b=>{
+    const d = document.createElement("div");
+    d.className = "card";
+
+    d.innerHTML = `
+      <div class="title">${b.title}</div>
+      <div class="meta">${getLastDate(b)}</div>
+    `;
+
+    d.onclick = ()=> openDetail(b);
+    el.appendChild(d);
+  });
+}
+//========
+
+//今年：今月◯冊の表示
+function renderSummary(){
+  const el = document.getElementById("home-summary");
+  if(!el) return;
+
+  const month = getMonthlyCount();
+  const year = getYearlyCount();
+
+  let html = `
+    <div class="summary-box">
+      <div class="summary-item">
+        <div class="num">${year}</div>
+        <div class="label">今年</div>
+      </div>
+
+      <div class="summary-item">
+        <div class="num">${month}</div>
+        <div class="label">今月</div>
+      </div>
+    </div>
+  `;
+
+  // 🎯 年間目標
+  if(enableGoal){
+    const rate = yearlyGoal
+      ? Math.min(100, Math.round(year / yearlyGoal * 100))
+      : 0;
+
+    const color =
+      rate < 30 ? "#e74c3c" :
+      rate < 70 ? "#f1c40f" :
+                  "#2ecc71";
+
+    html += `
+      <div class="goal-box">
+        ★⭐︎★ ${year} / ${yearlyGoal}冊 (${rate}%)
+        <div class="goal-bar">
+          <div class="goal-fill" style="width:${rate}%; background:${color}"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  el.innerHTML = html;
+}
+//========
+
+
+//========タイプフィルター（ウィッシュリスト）
+function renderTypeFilter(){
+  const el = document.getElementById("type-filter");
+  if(!el) return;
+
+  el.innerHTML = `
+    <button 
+		class="${selectedType==='all' ? 'active' : ''}"
+		onclick="setTypeFilter('all')">
+      すべて
+    </button>
+
+    <button 
+      class="${selectedType==='normal' ? 'active' : ''}"
+      onclick="setTypeFilter('normal')">
+      読書
+    </button>
+
+    <button 
+      class="${selectedType==='wish' ? 'active' : ''}"
+      onclick="setTypeFilter('wish')">
+      ウィッシュ
+    </button>
+  `;
+}
+//========
+
+
+
+
+
+
+
+//タグで絞込み描画
+function renderTagFilter(){
+  const el = document.getElementById('tag-filter')
+  if(!el) return;
+  el.innerHTML = "";
+
+  // 全解除ボタン
+  const all = document.createElement('button');
+	all.textContent = "すべて"; 
+  
+	all.style.margin = "3px";
+	all.style.padding = "2px 8px";
+	all.style.fontSize = "12px";
+	all.style.borderRadius = "999px";
+	all.style.border = "1px solid #999";
+	all.style.background = "transparent";
+	all.style.color = "#666";
+  
+ if(selectedTagId === null){
+  all.style.background = "#666";
+  all.style.color = "#fff";
+}
+  
+  all.onclick = ()=>{
+    selectedTagId = null;
+        
+    localStorage.setItem("selectedTagId", "");
+    
+    renderHome();
+    renderTagFilter(); //選択状態更新
+  };
+  
+  el.appendChild(all);
+
+  // タグ一覧
+  tagMaster.forEach(t=>{
+    const btn = document.createElement('button');
+    btn.textContent = t.name;
+    
+   btn.style.margin = "3px";
+   btn.style.padding = "2px 8px";
+   btn.style.fontSize = "12px";
+   btn.style.borderRadius = "999px"; // ★丸くする
+   btn.style.cursor = "pointer";
+   btn.style.border = `1px solid ${t.color}`;
+   btn.style.background = "transparent";
+   btn.style.color = t.color;
+       
+    //選択中の見た目
+   if(t.id === selectedTagId){
+  btn.style.background = t.color;
+  btn.style.color = "#fff";
 }
 
-function renderExList(logs) {
-  const list = g('ex-list');
-  if (!list) return;
-  if (!logs.length) { list.innerHTML='<div class="empty">交換履歴がありません</div>'; return; }
-  const typeMap = { time:'⏱時間', money:'💰お小遣い', item:'🎁アイテム', other:'その他' };
-  list.innerHTML = '';
-  logs.forEach(l => {
-    const d = document.createElement('div'); d.className = 'ex-item';
-    d.innerHTML = `
-      <div>
-        <span class="ex-type">${typeMap[l.type]||l.type}</span>
-        <div style="font-weight:600">${l.description||'－'}</div>
-        ${l.value_received?`<div class="text-xs text-lt">${l.value_received}</div>`:''}
-        <div class="text-xs text-lt">${(l.timestamp||'').slice(0,16).replace('T',' ')}</div>
+    btn.onclick = ()=>{
+      selectedTagId = t.id;
+      
+      localStorage.setItem("selectedTagId", selectedTagId || "");
+      
+      renderHome();
+      renderTagFilter(); //見た目更新
+    };
+
+    el.appendChild(btn);
+  });
+}//function renderTagFilter()おわり
+
+
+
+//====ソートUI
+function renderSort(targetId = "sort-mode"){
+  const el = document.getElementById(targetId);
+  if(!el) return;
+
+  el.innerHTML = "";
+
+  const modes = [
+    { id: "title", label: "名前" },
+    { id: "fav", label: "評価" },
+    { id: "date", label: "日付" }
+  ];
+
+  modes.forEach(m=>{
+    const btn = document.createElement('button');
+
+    let arrow = "";
+    if(m.id === sortKey){
+      arrow = sortOrder === "asc" ? " ↑" : " ↓";
+    }
+
+    btn.textContent = m.label + arrow;
+    btn.className = "setting-btn";
+
+    if(m.id === sortKey){
+      btn.classList.add("active");
+    }
+
+    btn.onclick = ()=>{
+      if(sortKey === m.id){
+        sortOrder = (sortOrder === "asc") ? "desc" : "asc";
+      } else {
+        sortKey = m.id;
+        sortOrder = "asc";
+      }
+
+      localStorage.setItem("sortKey", sortKey);
+      localStorage.setItem("sortOrder", sortOrder);
+
+      renderHome();          // ！
+      renderSort(targetId);
+    };
+
+    el.appendChild(btn);
+  });
+}
+//========
+
+
+//====カレンダー====
+function renderCalendar(){
+
+  const el = document.getElementById("page-calendar");
+  if(!el) return;
+
+  const now = currentMonth;
+  const year = now.getFullYear();
+  const month = now.getMonth();
+
+  el.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button onclick="changeMonth(-1)">←</button>
+    <h3>${year}年 ${month+1}月</h3>
+    <button onclick="changeMonth(1)">→</button>
+  </div>
+`;
+
+  const map = {};
+
+  books.forEach(b=>{
+    (b.dates || []).forEach(d=>{
+      map[d] = map[d] || [];
+      map[d].push(b);
+    });
+  });
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const lastDate = new Date(year, month+1, 0).getDate();
+  const days = ["日","月","火","水","木","金","土"];
+
+  const grid = document.createElement("div");
+  grid.style.display = "grid";
+  grid.style.gridTemplateColumns = "repeat(7,1fr)";
+  grid.style.gap = "4px";
+  
+  grid.style.transition = "opacity 0.2s";
+  grid.style.opacity = "0";
+  
+  setTimeout(()=>{
+    grid.style.opacity ="1";
+  },10);
+
+    days.forEach((d,i)=>{
+    const head = document.createElement("div");
+    head.textContent = d;
+    head.style.fontSize = "12px";
+    head.style.textAlign = "center";
+    head.style.fontWeight = "bold";
+    
+    //土日色
+    if(i === 0) head.style.color = "#e74c3c"; //日曜
+    if(i === 6) head.style.color = "#3498db"; //土曜
+    
+    grid.appendChild(head);
+    });
+
+  // 空白
+  for(let i=0;i<firstDay;i++){
+    grid.appendChild(document.createElement("div"));
+  }
+
+  // 日付セル
+  for(let d=1; d<=lastDate; d++){
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+    const cell = document.createElement("div");
+    cell.style.border = "1px solid #ccc";
+    cell.style.minHeight = "60px";
+    cell.style.padding = "4px";
+    cell.style.cursor = "pointer";
+    cell.style.borderRadius = "8px";
+    cell.style.fontWeight = "bold";
+
+    const dayOfWeek = new Date(year, month, d).getDay();
+    
+    if(dayOfWeek === 0){
+      cell.style.backgroundColor = "rgba(231,76,60,0.1)";
+    }
+    if(dayOfWeek === 6){
+      cell.style.backgroundColor = "rgba(52,152,219,0.1)";
+    }
+
+    const count = map[dateStr]?.length || 0;
+
+    //ヒートマップ
+    let textColor = "#333"
+    
+    	if(count){
+ 	 const alpha = Math.min(count / 5, 1); //最大5冊でMAX色
+ 	 const color = getHeatColor(count);
+ 	 if(color){
+  	 
+		cell.style.background = color;
+  		cell.style.color = count >= 3 ? "#fff" : "#333";
+  		//textColor = alpha > 0.4 ? "#fff" : "#333";
+	  }}
+
+    
+	//今日を強調
+	const today = new Date().toISOString().slice(0,10);
+	if(dateStr === today){
+  	  cell.style.border = "2px solid #ac4f02";
+	}
+
+    cell.innerHTML = `
+      <div style="font-size:12px;">${d}</div>
+      <div style="font-size:12px;color:${textColor};">
+        ${count ? count + "冊" : ""}
       </div>
-      <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:5px">
-        <span class="ex-pts">−${l.points_used}P</span>
-        <button class="del-btn" data-exid="${l.id}" style="font-size:.7rem;padding:3px 7px">削除</button>
-      </div>`;
+    `;
+
+    cell.onmouseenter = ()=>{
+      cell.style.transform = "scale(1.05)";
+    };
+    
+    cell.onmouseleave = ()=>{
+      cell.style.transform = "scale(1)";
+    };
+
+    cell.onclick = ()=>{
+      if(!map[dateStr]) return;
+      openDayModal(map[dateStr]);
+    };
+    
+    // ここが超重要
+    grid.appendChild(cell);
+  }
+
+  el.appendChild(grid);
+}
+//========
+
+
+
+
+// シリーズ一覧
+function renderSeries(){
+  const list = document.getElementById('page-series');
+  list.innerHTML = "";
+
+	series.forEach(s=>{
+			const d = document.createElement('div');
+			d.className = "card";
+			d.textContent = s.name;
+
+    d.onclick = ()=> openSeries(s);
     list.appendChild(d);
   });
-  list.querySelectorAll('[data-exid]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      confirmDlg('この交換記録を削除しますか？（ポイントは今日に返還）', async () => {
-        const ukey  = sumUser === 1 ? 'son' : 'daughter';
-        const u     = appData.users[ukey] || {};
-        const ex    = (u.exchange_logs||{})[btn.dataset.exid];
-        if (!ex) return;
-        const today = todayStr();
-        const day   = (u.daily||{})[today] || { total_points:0 };
-        await dbUpdate(`users/${ukey}/daily/${today}`, { total_points:(day.total_points||0)+(ex.points_used||0) });
-        await dbRemove(`users/${ukey}/exchange_logs/${btn.dataset.exid}`);
-        toast('削除・返還しました','info');
-      });
-    });
-  });
 }
+//========
 
-window.submitExchange = async function() {
-  const ukey  = sumUser === 1 ? 'son' : 'daughter';
-  const u     = appData.users[ukey] || {};
-  const daily = u.daily || {};
-  const tp    = Object.values(daily).reduce((s, d) => s + (d.total_points||0), 0);
-  const pts   = parseInt(g('ex-pts').value || '0');
-  if (pts <= 0) { toast('ポイント数を入力してください','ng'); return; }
-  if (tp < pts) { toast(`ポイント不足（残${tp}P）`,'ng'); return; }
 
-  const today = todayStr();
-  const day   = daily[today] || { total_points:0 };
-  const ts    = new Date().toISOString();
-  const eid   = 'ex_' + Date.now();
+//========
+function renderList(el, sorted){
+  el.innerHTML = "";
 
-  await dbUpdate(`users/${ukey}/daily/${today}`, { total_points:(day.total_points||0)-pts });
-  await dbUpdate(`users/${ukey}/exchange_logs/${eid}`, {
-    id:eid, type:g('ex-type').value, points_used:pts,
-    value_received:g('ex-val').value.trim(), description:g('ex-desc').value.trim(), timestamp:ts,
+  const listWrap = document.createElement("div");
+  listWrap.className = "list-grid";
+
+  sorted.forEach(b=>{
+    const d = document.createElement('div');
+    d.className = "list-card";
+
+    d.innerHTML = `
+      <div class="title">${b.title}</div>
+      <div>${getLastDate(b)}</div>
+      <div>${getFavLabel(b.fav)}</div>
+    `;
+
+    d.onclick = ()=> openDetail(b);
+
+    listWrap.appendChild(d);
   });
-  closeModal('ex-modal');
-  ['ex-pts','ex-val','ex-desc'].forEach(id=>{const el=g(id);if(el)el.value='';});
-  toast('交換を記録しました ✓','ok');
-};
 
-/* ══════════════════════════════════════
-   推移
-══════════════════════════════════════ */
-let trUser = 1;
-let trCharts = {};
-window.setTrUser = function(uid) {
-  trUser = uid;
-  g('tr-tab-1').classList.toggle('active', uid===1);
-  g('tr-tab-2').classList.toggle('active', uid===2);
-  renderTrends();
-};
+  el.appendChild(listWrap);
+}
+//========
 
-function renderTrends() {
-  const ukey  = trUser === 1 ? 'son' : 'daughter';
-  const daily = appData.users[ukey]?.daily || {};
-  const monthly={}, yearly={};
+//表示制御====
+function applyUIVisibility(page){
+  const master = (uiMode === "on");
 
-  for (const [d, rec] of Object.entries(daily)) {
-    const ym = d.slice(0,7), yr = d.slice(0,4);
-    if (!monthly[ym]) monthly[ym]={ym,pts:0,mins:0,days:0};
-    if (!yearly[yr])  yearly[yr] ={yr,pts:0,mins:0};
-    monthly[ym].pts  += rec.total_points||0;
-    monthly[ym].mins += rec.total_time_minutes||0;
-    monthly[ym].days++;
-    yearly[yr].pts   += rec.total_points||0;
-    yearly[yr].mins  += rec.total_time_minutes||0;
+  const search = (document.getElementById("search")?.value || "").toLowerCase();
+  const summary = document.getElementById("home-summary");
+  const tags = document.getElementById("tag-filter");
+  const type = document.getElementById("type-filter");
+  const recent = document.getElementById("recent-books");
+
+  // 🔍 検索
+  if(search){
+    if(master && ["home","series","characters","calendar"].includes(page)){
+      search.style.display = "block";
+    } else {
+      search.style.display = "none";
+    }
   }
-  const mo = Object.values(monthly).sort((a,b)=>a.ym>b.ym?1:-1);
-  const yr = Object.values(yearly).sort((a,b)=>a.yr>b.yr?1:-1);
 
-  makeBar('chart-pts',  mo.map(r=>r.ym),  mo.map(r=>r.pts),  'ポイント',  '#d4622a');
-  makeBar('chart-time', mo.map(r=>r.ym),  mo.map(r=>Math.round(r.mins/60*10)/10), '時間(h)', '#1a6fa8');
-  makeBar('chart-year', yr.map(r=>r.yr),  yr.map(r=>r.pts),  '年間P',     '#2f6844');
+  const isHome = (page === "home" && master);
 
-  const tb = g('mo-tbody');
-  if (tb) {
-    tb.innerHTML = '';
-    [...mo].reverse().forEach(r => {
-      const h=Math.floor(r.mins/60),m=r.mins%60;
-      const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${r.ym}</td><td class="td-p">${r.pts}P</td><td class="td-t">${h?h+'h':''}${m?m+'m':''}</td><td>${r.days}日</td>`;
-      tb.appendChild(tr);
-    });
-    if (!mo.length) tb.innerHTML='<tr><td colspan="4" class="empty">データなし</td></tr>';
+  if(summary) summary.style.display = (isHome && uiSettings.summary) ? "block" : "none";
+  if(tags) tags.style.display = (isHome && uiSettings.tags) ? "flex" : "none";
+  if(type) type.style.display = (isHome && uiSettings.type) ? "flex" : "none";
+  if(recent) recent.style.display = (isHome && uiSettings.recent) ? "block" : "none";
+}
+//========
+
+
+
+//====キャラクターページ====
+function renderCharacters(){
+  const el = document.getElementById('page-characters');
+  el.innerHTML = "";
+
+  characters.forEach(c=>{
+    const d = document.createElement('div');
+    d.className = "card";
+    d.textContent = c.name;
+
+    d.onclick = ()=> openCharacter(c);
+
+    el.appendChild(d);
+  });
+}
+//===========
+
+//🔧====設定ページ====
+function renderSettings(){
+  const el = document.getElementById("page-settings");
+  if(!el) return;
+
+  el.innerHTML = `
+    <h2 style="padding:12px;">設定</h2>
+
+    <div class="settings-group">
+      <div class="settings-header">表示</div>
+      <div class="settings-list">
+        <div class="settings-item" onclick="openSettingSelect('view')">
+          表示モード
+          <div class="settings-value">${getViewLabel()}</div>
+        </div>
+
+        <div class="settings-item" onclick="openSettingSelect('color')">
+          背表紙カラー
+          <div class="settings-value">${getColorLabel()}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-header">並び</div>
+      <div class="settings-list">
+        <div class="settings-item" onclick="openSettingSelect('sort')">
+          並び順
+          <div class="settings-value">${getSortLabel()}</div>
+        </div>
+      </div>
+    </div>
+
+<div class="settings-group">
+  <div class="settings-header">ホームUI</div>
+  <div class="settings-list">
+
+    <div class="settings-item">
+      最近の本
+      <div class="switch ${uiSettings.recent ? "on" : ""}" onclick="toggleUIItem(event,'recent')"></div>
+    </div>
+
+    <div class="settings-item">
+      サマリー
+      <div class="switch ${uiSettings.summary ? "on" : ""}" onclick="toggleUIItem(event,'summary')"></div>
+    </div>
+
+    <div class="settings-item">
+      タグ
+      <div class="switch ${uiSettings.tags ? "on" : ""}" onclick="toggleUIItem(event,'tags')"></div>
+    </div>
+
+    <div class="settings-item">
+      タイプ
+      <div class="switch ${uiSettings.type ? "on" : ""}" onclick="toggleUIItem(event,'type')"></div>
+    </div>
+
+  </div>
+</div>
+<div class="settings-group">
+  <div class="settings-header">目標</div>
+  <div class="settings-list">
+
+    <div class="settings-item">
+      年間目標
+      <div class="switch ${enableGoal ? "on" : ""}" onclick="toggleGoal(event)"></div>
+    </div>
+
+    <div class="settings-item">
+      冊数
+      <input 
+        type="number" 
+        value="${yearlyGoal}" 
+        min="1"
+        style="width:80px;"
+        onchange="changeGoal(this.value)"
+      >
+    </div>
+
+  </div>
+</div>
+
+    <button onclick="go('home')" style="margin:16px;">← 戻る</button>
+  `;  
+}
+//==========
+
+
+
+//UIの表示制御ベース
+function applyUIVisibility(page){
+  const show = (uiMode === "on");
+
+  // 要素取得
+  const search = (document.getElementById("search")?.value || "").toLowerCase();
+  const summary = document.getElementById("home-summary");
+  const tags = document.getElementById("tag-filter");
+  const type = document.getElementById("type-filter");
+  const recent = document.getElementById("recent-books");
+
+  // 検索バー
+  if(search){
+    if(show && ["home","series","characters","calendar"].includes(page)){
+      search.style.display = "block";
+    } else {
+      search.style.display = "none";
+    }
   }
-}
 
-function makeBar(id, labels, data, label, color) {
-  if (trCharts[id]) { trCharts[id].destroy(); delete trCharts[id]; }
-  const ctx = g(id); if (!ctx) return;
-  trCharts[id] = new Chart(ctx, {
-    type:'bar',
-    data:{ labels, datasets:[{label, data, backgroundColor:color+'99', borderColor:color, borderWidth:1.5, borderRadius:5}] },
-    options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:'#eee'}} } }
-  });
-}
+  //  ホーム限定UI
+  const homeOnly = (show && page === "home");
 
-/* ══════════════════════════════════════
-   設定
-══════════════════════════════════════ */
-function renderSettingsView() {
-  try {
-    const s = appData.settings || {};
-    setVal('s-pph', s.points_per_hour || 50);
-    setVal('s-ypp', s.yen_per_point   || 4);
-    renderSettingsItems();
-    // Firebase設定フィールドを復元
-    const cfg = loadFbConfig() || {};
-    if (cfg.apiKey)      setVal('fb-apikey',      cfg.apiKey);
-    if (cfg.authDomain)  setVal('fb-authdomain',  cfg.authDomain);
-    if (cfg.databaseURL) setVal('fb-dburl',       cfg.databaseURL);
-    if (cfg.projectId)   setVal('fb-projectid',   cfg.projectId);
-    if (cfg.appId)       setVal('fb-appid',       cfg.appId);
-  } catch(e) {
-    console.error('renderSettingsView error:', e);
+  if(summary) summary.style.display = homeOnly ? "block" : "none";
+  if(tags) tags.style.display = homeOnly ? "flex" : "none";
+  if(type) type.style.display = homeOnly ? "flex" : "none";
+  if(recent) recent.style.display = homeOnly ? "block" : "none";
+}
+//========
+
+//========
+function toggleUIMode(e){
+  e.stopPropagation();
+
+  uiMode = (uiMode === "on") ? "off" : "on";
+  localStorage.setItem("uiMode", uiMode);
+
+  renderSettings();
+  go('home'); // 再適用
+}
+//↑↓同じかも↑↓========
+function toggleUI(e){
+  e.stopPropagation();
+
+  uiMode = (uiMode === "on") ? "off" : "on";
+  localStorage.setItem("uiMode", uiMode);
+
+  renderSettings();
+  renderHome();
+  applyUIVisibility("home"); // ←即反映
+}
+//========
+
+//========
+function toggleUIItem(e, key){
+  e.stopPropagation();
+
+  uiSettings[key] = !uiSettings[key];
+  localStorage.setItem("uiSettings", JSON.stringify(uiSettings));
+
+  renderSettings();
+  updateUIVisibility("home"); // ←追加
+  renderHome();
+}
+//========
+
+//「次の画面」っぽいやつ====
+function openSettingSelect(type){
+  const el = document.getElementById("page-settings");
+
+  let list = [];
+
+  if(type === "view"){
+    list = [
+      {id:"card", label:"カード"},
+      {id:"shelf", label:"本棚"},
+    ];
   }
+
+  if(type === "color"){
+    list = [
+      {id:"single", label:"単色"},
+      {id:"gradient", label:"グラデ"},
+      {id:"split", label:"分割"},
+      {id:"stripe", label:"目印"}
+    ];
+  }
+
+  if(type === "sort"){
+    list = [
+      {id:"title", label:"名前"},
+      {id:"fav", label:"評価"},
+      {id:"date", label:"日付"}
+    ];
+  }
+
+  if(type === "recent"){
+    list = [
+      {id:"card", label:"カード"},
+      {id:"spine", label:"背表紙"}
+    ];
+  }
+
+  el.innerHTML = `
+    <h2 style="padding:12px;">選択</h2>
+    <div class="settings-list" id="select-list"></div>
+    <button onclick="renderSettings()" style="margin:16px;">← 戻る</button>
+  `;
+
+  const listEl = document.getElementById("select-list");
+  listEl.innerHTML = "";
+
+  list.forEach(item=>{
+    const d = document.createElement("div");
+    d.className = "settings-item";
+
+    const selected =
+      (type==="view" && item.id===viewMode) ||
+      (type==="color" && item.id===colorMode) ||
+      (type==="sort" && item.id===sortKey) ||
+      (type==="recent" && item.id===recentViewMode);
+
+    d.innerHTML = `
+      ${item.label}
+      <div>${selected ? "✔️" : ""}</div>
+    `;
+
+    d.onclick = ()=>{
+      if(type==="view") viewMode = item.id;
+      if(type==="color") colorMode = item.id;
+      if(type==="sort") sortKey = item.id;
+      if(type==="recent") recentViewMode = item.id;
+
+      localStorage.setItem("viewMode", viewMode);
+      localStorage.setItem("colorMode", colorMode);
+      localStorage.setItem("sortKey", sortKey);
+      localStorage.setItem("recentViewMode", recentViewMode);
+
+      renderSettings();
+      renderHome();
+    };
+
+    listEl.appendChild(d);
+  });
 }
+//========
 
-window.saveSettings = async function() {
-  await dbUpdate('settings', {
-    points_per_hour: parseInt(g('s-pph').value)||50,
-    yen_per_point:   parseInt(g('s-ypp').value)||4,
-  });
-  toast('設定を保存しました ✓','ok');
-};
+//========
+function updateUIVisibility(page){
 
-function renderSettingsItems() {
-  const list = g('items-list');
-  if (!list) return;
-  try {
-  const items = appData.items || [];
-  if (!items.length) { list.innerHTML='<div class="empty">項目がありません</div>'; return; }
-  list.innerHTML = '';
-  items.forEach(item => {
-    const lim = [
-      item.daily_limit?'1日1回':'', item.weekly_limit?'週1回':'',
-      item.max_per_day?`最大${item.max_per_day}回/日`:'',
-      item.max_point_per_day?`P最大${item.max_point_per_day}回`:'',
-      item.max_time_per_day ?`時間最大${item.max_time_per_day}回`:'',
-    ].filter(Boolean).join(' / ')||'制限なし';
-    const val = [(item.base_point?(item.base_point>0?'+':'')+item.base_point+'P':''), (item.base_time?(item.base_time>0?'+':'')+item.base_time+'分':'')].filter(Boolean).join(' ');
-    const vis = [item.visible_son?'息子':'',item.visible_daughter?'娘':''].filter(Boolean).join('・');
-    const row = document.createElement('div'); row.className='set-row';
-    row.innerHTML=`<div class="rm"><div class="rn">${item.name} <span class="text-lt" style="font-size:.78rem;font-weight:400">${val}</span></div><div class="rs">${lim} ／ 表示：${vis||'なし'}</div></div><div class="ra"><button class="edit-btn" data-id="${item.id}">編集</button><button class="del-btn" data-id="${item.id}">削除</button></div>`;
-    list.appendChild(row);
-  });
-  list.querySelectorAll('.edit-btn').forEach(b => {
-    b.addEventListener('click', ()=>openItemModal((appData.items||[]).find(i=>String(i.id)===b.dataset.id)));
-  });
-  list.querySelectorAll('.del-btn').forEach(b => {
-    b.addEventListener('click', ()=>{
-      const item=(appData.items||[]).find(i=>String(i.id)===b.dataset.id);
-      confirmDlg(`「${item?.name}」を削除しますか？`, async ()=>{
-        const newItems=(appData.items||[]).filter(i=>String(i.id)!==b.dataset.id);
-        await dbSet('items', newItems);
-        toast('削除しました');
-      });
-    });
-  });
-  } catch(e) { console.error('renderSettingsItems error:', e); }
-}
+  const showUI = uiSettings; // 略
 
-window.openItemModal = function(item) {
-  g('item-modal-title').textContent = item?'項目を編集':'項目を追加';
-  setVal('i-id',       item?.id??'');
-  setVal('i-name',     item?.name??'');
-  setVal('i-point',    item?.base_point??0);
-  setVal('i-time',     item?.base_time??0);
-  setChk('i-daily',    !!item?.daily_limit);
-  setChk('i-weekly',   !!item?.weekly_limit);
-  setVal('i-max',      item?.max_per_day??'');
-  setVal('i-maxp',     item?.max_point_per_day??'');
-  setVal('i-maxt',     item?.max_time_per_day??'');
-  setVal('i-key',      item?.item_key??'');
-  setChk('i-pos',      item?!!item.is_positive:true);
-  setChk('i-son',      item?!!item.visible_son:true);
-  setChk('i-daughter', item?!!item.visible_daughter:true);
-  setVal('i-sort',     item?.sort_order??0);
-  openModal('item-modal');
-};
+  const search = (document.getElementById("topbar")?.value || "").toLowerCase();
+  const summary = document.getElementById("home-summary");
+  const recent = document.getElementById("recent-books");
+  const tags = document.getElementById("tag-filter");
+  const type = document.getElementById("type-filter");
 
-window.submitItemForm = async function() {
-  // name validation below
-  if (!g('i-name').value.trim()) { toast('名前は必須です','ng'); return; }
-  const nint = id => { const v=g(id)?.value; return (v!==''&&v!==null&&v!==undefined)?parseInt(v):null; };
-  const existId = parseInt(g('i-id').value||'0');
-  const newItem = {
-    id:          existId || (Math.max(0,...(appData.items||[]).map(i=>i.id||0)) + 1),
-    name:        g('i-name').value.trim(),
-    base_point:  parseInt(g('i-point').value)||0,
-    base_time:   parseInt(g('i-time').value)||0,
-    daily_limit: g('i-daily').checked,
-    weekly_limit:g('i-weekly').checked,
-    max_per_day:       nint('i-max'),
-    max_point_per_day: nint('i-maxp'),
-    max_time_per_day:  nint('i-maxt'),
-    item_key:    g('i-key').value.trim()||null,
-    is_positive: g('i-pos').checked,
-    visible_son: g('i-son').checked,
-    visible_daughter:g('i-daughter').checked,
-    sort_order:  parseInt(g('i-sort').value)||0,
-  };
-  const items = appData.items || [];
-  const newItems = existId ? items.map(i=>i.id===existId?newItem:i) : [...items, newItem];
-  newItems.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-  await dbSet('items', newItems);
-  closeModal('item-modal');
-  toast('保存しました ✓','ok');
-};
+  // ● 全OFF
+  if(!showUI.recent && !showUI.summary && !showUI.tags && !showUI.type){
+    if(search) search.style.display = "none";
+    if(summary) summary.style.display = "none";
+    if(recent) recent.style.display = "none";
+    if(tags) tags.style.display = "none";
+    if(type) type.style.display = "none";
+    return;
+  }
 
-window.resetClothes = function(uid) {
-  const uname = uid===1?'息子':'娘';
-  confirmDlg(`${uname}の服カウントをリセットしますか？`, async ()=>{
-    const ukey = uid===1?'son':'daughter';
-    await dbUpdate(`users/${ukey}`, { clothes_count:0, clothes_last_date:null });
-    toast(`${uname}リセット完了`,'ok');
-  });
-};
+  // ● 検索バー
+  const showSearchPages = ["home","calendar","series","characters"];
+  if(search){
+    search.style.display =
+      showSearchPages.includes(page) ? "flex" : "none";
+  }
 
-/* ══════════════════════════════════════
-   確認ダイアログ（iOS PWA対応）
-══════════════════════════════════════ */
-function confirmDlg(msg, onOk) {
-  g('confirm-msg').textContent = msg;
-  openModal('confirm-bg');
-  g('confirm-ok').onclick = ()=>{ closeModal('confirm-bg'); onOk(); };
-}
-
-/* ══════════════════════════════════════
-   Toast
-══════════════════════════════════════ */
-function toast(msg, type='', ms=2500) {
-  let w = document.querySelector('.toast-wrap');
-  if (!w) { w=document.createElement('div'); w.className='toast-wrap'; document.body.appendChild(w); }
-  const el=document.createElement('div'); el.className='toast '+type; el.textContent=msg;
-  w.appendChild(el);
-  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),320); }, ms);
-}
-
-/* ══════════════════════════════════════
-   モーダル
-══════════════════════════════════════ */
-window.openModal  = id => g(id)?.classList.add('open');
-window.closeModal = id => g(id)?.classList.remove('open');
-
-/* ══════════════════════════════════════
-   ユーティリティ
-══════════════════════════════════════ */
-
-
-/* ══════════════════════════════════════
-   起動
-══════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
-  g('past-date').value = todayStr();
-
-  // Firebase接続試行
-  const cfg = loadFbConfig();
-  if (cfg) {
-    connectFirebase(cfg);
+  // ● ホームだけ
+  if(page === "home"){
+    if(summary) summary.style.display = showUI.summary ? "block" : "none";
+    if(recent) recent.style.display = showUI.recent ? "block" : "none";
+    if(tags) tags.style.display = showUI.tags ? "flex" : "none";
+    if(type) type.style.display = showUI.type ? "flex" : "none";
   } else {
-    setSyncStatus('🟡 オフライン');
-    renderHome();
+    // 他ページは全部消す
+    if(summary) summary.style.display = "none";
+    if(recent) recent.style.display = "none";
+    if(tags) tags.style.display = "none";
+    if(type) type.style.display = "none";
+  }
+}
+//========
+
+
+
+
+
+
+
+//⬛︎⑤====イベント・操作系====
+//ユーザーの操作・openDetail、Toggle系、set系
+
+//⬛︎本の追加モーダル
+function openAddBookModal(){
+
+  const modal = document.createElement("div");
+  modal.className = "modal-bg";
+
+  modal.innerHTML = `
+    <div class="modal-box">
+
+      <h2>本を追加</h2>
+
+      <input id="add-title"
+        type="text"
+        placeholder="タイトル">
+
+      <div class="field">
+        <div class="field-label">読了日</div>
+
+        <input type="date" id="book-date">
+      </div>
+      <select id="add-fav">
+        <option value="0">評価なし</option>
+        <option value="1">★</option>
+        <option value="2">★★</option>
+        <option value="3">★★★</option>
+        <option value="4">👑</option>
+      </select>
+
+      <textarea id="add-memo"
+        placeholder="メモ"></textarea>
+
+      <div class="modal-actions">
+        <button onclick="closeModal()">キャンセル</button>
+
+        <button onclick="addBook('normal')">
+          本棚に追加
+        </button>
+
+        <button onclick="addBook('wish')">
+          ウィッシュ追加
+        </button>
+      </div>
+
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+}
+//========
+
+
+//====本追加モーダルを閉じる
+function closeModal(){
+  document.querySelectorAll(".modal-bg").forEach(el=>{
+    el.remove();
+  });
+}
+//========
+
+
+//====実際に本を追加する動作
+function addBook(type){
+
+  const title =
+    document.getElementById("add-title").value.trim();
+
+  if(!title){
+    alert("タイトルを入力してください");
+    return;
   }
 
-  goView('home');
+  const date =
+    document.getElementById("add-date").value;
+
+  const fav =
+    Number(document.getElementById("add-fav").value);
+
+  const memo =
+    document.getElementById("add-memo").value;
+
+  const newBook = {
+    id: Date.now().toString(),
+
+    title,
+    fav,
+    memo,
+
+    type,
+
+    dates: date ? [date] : [],
+
+    tagIds: []
+  };
+
+  books.unshift(newBook);
+
+  saveData();
+
+  closeModal();
+
+  renderHome();
+}
+//========
+
+// 本詳細
+function openDetail(book){
+  go('detail');
+
+  const el = document.getElementById('page-detail');
+ 
+  const relatedSeries = series.filter(s=>{
+    return Array.isArray(s.bookIds) && s.bookIds.includes(book.id);
+  });
+
+  const relatedCharacters = characters.filter(c=>{
+    return relatedSeries.some(s =>
+      Array.isArray(c.seriesIds) && c.seriesIds.includes(s.id)
+    );
+  });
+
+// ① HTML
+el.innerHTML = `
+	<h2>${book.title}</h2>
+	<div id="action-bar">
+		<button onclick="go('home')">戻る</button>
+		<button id="fav-btn">評価 ${getFavLabel(book.fav)}</button>
+		<button id="type-btn">${book.type === "wish" ? "📥 本棚に入れる" : "STAR ウィッシュに追加"}</button>
+		<button id="add-date-btn">
+		${book.dates?.length ? "🔂再読" : "✔️読了にする"}</button>
+	</div>
+<br>
+
+<div>
+  読了日:${(book.dates && book.dates.length > 0)
+    ? book.dates.map((d,i)=>`
+      <div>
+        ${d}
+        <span onclick="removeDate('${book.id}', ${i})" style="color:red;cursor:pointer;">  ：  削除  ：  </span>
+        <span onclick="editDate('${book.id}', ${i})" style="cursor:pointer;">編集</span>
+      </div>
+    `).join("")
+    : `<span style="color:gray;">🔖未読</span>`
+  }
+</div>
+
+    <div style="margin-top:10px;">
+      ${book.memo || ""}
+    </div>
+
+    <hr>
+
+    <div>
+      シリーズ:
+      ${relatedSeries.map(s=>`
+        <span style="color:blue;cursor:pointer"
+          onclick="openSeriesById('${s.id}')">
+          ${s.name}
+        </span>
+      `).join(", ") || "なし"}
+    </div>
+
+ 
+  `;
+
+// ② 登場人物エリア
+el.innerHTML += `
+	<hr>
+	<div>登場人物:</div>
+	<div id="book-chars"></div>
+	
+  `;
+
+
+  //評価ボタン
+  const favBtn = document.getElementById('fav-btn');
+  //読了ボタン
+  const addBtn = document.getElementById('add-date-btn');
+  //ウィッシュ切替ボタン
+  const typeBtn = document.getElementById('type-btn');
+  //ボタンたち
+  const actionBar = document.getElementById('action-bar');
+  actionBar.style.display = "flex";
+  actionBar.style.alignItems = "center";
+  actionBar.style.gap = "8px";
+  actionBar.style.margin = "8px 0";
+  actionBar.style.flexWrap = "wrap";
+  
+   const badge = createReadBadge(book);
+  actionBar.appendChild(badge);
+  badge.style.cursor = "pointer";
+  
+  badge.onclick = ()=>{
+  	alert(book.dates?.join("\n") || "未読");
+  };
+  
+  styleChip(favBtn, true); //評価は強調
+  styleChip(addBtn, false); //読了は通常
+  
+
+//  favBtn.style.transition = "transform 0.1s";
+
+//評価変更
+  favBtn.onclick = ()=>{
+    pressEffect(favBtn);
+    book.fav = (book.fav || 0) + 1;
+
+    if(book.fav > 4) book.fav = 1;
+
+	saveData();
+	openDetail(book);
+    //setTimeout(renderHome, 0);
+  };
+  
+  
+//読了日追加
+addBtn.onclick = ()=>{
+	pressEffect(addBtn);
+  const today = new Date().toISOString().slice(0,10);
+
+  if(!Array.isArray(book.dates)){
+    book.dates = [];
+  }
+
+  book.dates.push(today);
+
+  saveData();
+  openDetail(book); // 再描画
+};
+
+typeBtn.onclick = ()=>{
+	pressEffect(typeBtn);
+	
+	book.type = (book.type === "wish") ? "normal" : "wish";
+	
+	saveData();
+	openDetail(book);
+	};
+  
+  
+
+  // ⭐ 登場人物描画（←ここに入れる！！）
+  const list = document.getElementById('book-chars');
+
+  if(!relatedCharacters.length){
+    list.innerHTML = '<div style="color:gray;">（人物なし）</div>';
+  } else {
+    relatedCharacters.forEach(c=>{
+      const d = document.createElement('div');
+      d.className = "card";
+      d.textContent = c.name;
+
+      d.onclick = ()=> openCharacter(c);
+
+      list.appendChild(d);
+    });
+  }
+}
+//========		
+
+//本詳細でシリーズを開く
+function openSeriesById(id){
+  const s = series.find(x=>x.id === id);
+  if(s) openSeries(s);
+}
+//========
+
+
+//タグ収納トグル
+function setupTagToggle(){
+  const btn = document.getElementById('toggle-tags');
+  const el = document.getElementById('tag-filter');
+  if(!btn || !el) return;
+
+  function update(){
+    el.style.display = showTags ? "flex" : "none";
+  }
+
+  update();
+
+  btn.onclick = ()=>{
+    showTags = !showTags;
+    localStorage.setItem("showTags", showTags);
+    update();
+  };
+}
+//========
+
+
+
+
+//カレンダー開くやつ
+function openCalendar(){
+  go('calendar');
+  renderCalendar();
+}
+//========
+
+
+//========
+function openDetailById(id){
+  const book = books.find(b=>b.id===id);
+  if(!book) return;
+
+  alert(book.title);
+}
+//========
+
+//モーダル設定====
+function openDayModal(list){
+  const m = document.createElement("div");
+  m.style.position = "fixed";
+  m.style.top = 0;
+  m.style.left = 0;
+  m.style.right = 0;
+  m.style.bottom = 0;
+  m.style.background = "rgba(0,0,0,0.5)";
+  m.style.display = "flex";
+  m.style.alignItems = "center";
+  m.style.justifyContent = "center";
+  m.style.borderRadius = "8px";
+
+  const box = document.createElement("div");
+  box.style.background = "#fff";
+  box.style.padding = "20px";
+  box.style.maxHeight = "80%";
+  box.style.overflow = "auto";
+  box.style.borderRadius = "12px";
+  box.style.minWidth = "200px";
+
+  list.forEach(b=>{
+    const d = document.createElement("div");
+    d.style.padding = "6px 0";
+    d.style.borderBottom = "1px solid #eee";
+    
+    d.innerHTML = `
+      <div style="font-weight:bold">${b.title}</div>
+      <div style="font-size:12px;color:#666">${getReadStatus(b)}</div>`;
+
+    d.onclick = ()=>{
+      m.remove();
+      openDetail(b);
+    };
+    
+    box.appendChild(d);
+  });
+
+  m.appendChild(box);
+  m.onclick = ()=> m.remove();
+
+  document.body.appendChild(m);
+}
+//========
+
+
+
+//本のビュー切り替え
+function setView(mode){
+  viewMode = mode;
+  localStorage.setItem("viewMode", mode);
+  renderHome();
+}
+//========
+
+
+//========
+function setTypeFilter(type){
+  selectedType = type;
+  renderTypeFilter(); //再描画で色変更
+  renderHome();
+}
+//========
+
+
+
+//★★ワンクリックでタイプ切替
+function toggleType(book){
+	book.type = (book.type === "wish") ? "normal" : "wish";
+	saveData();
+	openDetail(book);
+}
+//========
+
+
+
+
+// シリーズ詳細====
+function openSeries(s){
+  go('detail');
+
+  const el = document.getElementById('page-detail');
+
+	//シリーズ→本★完了
+  const relatedBooks = books.filter(b=>{
+    return Array.isArray(s.bookIds) && s.bookIds.includes(b.id);
+  });
+  	
+ 	 //シリーズ→人物★完了
+  const relatedCharacters = characters.filter(c=>{
+  return Array.isArray(c.seriesIds) && c.seriesIds.includes(s.id);
+  });
+  
+
+//シリーズ関連：本HTML表示
+  el.innerHTML = `
+    <h2>${s.name}</h2>
+    <div>冊数: ${relatedBooks.length}</div>
+    <hr>
+    <div id="series-books"></div>
+    <button onclick="go('series')">戻る</button>
+  `;
+
+//シリーズ関連：人物HTML表示
+el.innerHTML += `
+  <hr>
+  <div>登場人物:</div>
+  <div id="series-chars"></div>
+`;
+
+//シリーズ関連：本描画
+  const list = document.getElementById('series-books');
+
+//追加
+if(viewMode.startsWith("shelf")){
+	renderShelf(list, relatedBooks);
+} else {
+	relatedBooks.forEach(b=>{
+    const d = document.createElement('div');
+    d.className = "card";
+    d.textContent = b.title;
+
+    d.onclick = ()=> openDetail(b);
+    list.appendChild(d);
+  });
+  }
+  
+  
+  //シリーズ関連：人物描画
+const list2 = document.getElementById('series-chars');
+
+if(!relatedCharacters.length){
+  list2.innerHTML = '<div style="color:gray;">（人物なし）</div>';
+} else {
+  relatedCharacters.forEach(c=>{
+    const d = document.createElement('div');
+    d.className = "card";
+    d.textContent = c.name;
+
+    d.onclick = ()=> openCharacter(c);
+
+    list2.appendChild(d);
+  });
+}
+}
+//========
+
+//人物詳細====
+function openCharacter(c){
+  go('detail');
+
+  const el = document.getElementById('page-detail');
+
+ // 人物→シリーズ★完了
+  const relatedSeries = series.filter(s=>{
+    return Array.isArray(c.seriesIds) && c.seriesIds.includes(s.id);
+  });
+
+  // 人物→本★完了
+  const relatedBooks = books.filter(b=>{
+    return relatedSeries.some(s =>
+     Array.isArray(s.bookIds) && s.bookIds.includes(b.id)
+   );
+  });
+
+  // HTML
+  el.innerHTML = `
+    <h2>${c.name}</h2>
+
+    <div style="margin-bottom:10px;">
+      ${c.memo || ""}
+    </div>
+
+   <hr>
+
+    <div>シリーズ:</div>
+    <div id="char-series"></div>
+
+    <button onclick="go('characters')">戻る</button>
+  `;
+
+  // 本セクション追加
+  el.innerHTML += `
+    <hr>
+    <div>登場作品:</div>
+    <div id="char-books"></div>
+  `;
+
+  // シリーズ描画
+  const list = document.getElementById('char-series');
+
+  relatedSeries.forEach(s=>{
+    const d = document.createElement('div');
+    d.className = "card";
+    d.textContent = s.name;
+
+    d.onclick = ()=> openSeries(s);
+
+    list.appendChild(d);
+  });
+
+  // 本描画
+  const list3 = document.getElementById('char-books');
+
+  relatedBooks.forEach(b=>{
+    const d = document.createElement('div');
+    d.className = "card";
+    d.textContent = b.title;
+
+    d.onclick = ()=> openDetail(b);
+
+    list3.appendChild(d);
+  });
+}//function openCharacter()おわり
+//========
+
+
+//========
+function toggleGoal(e){
+  e.stopPropagation();
+
+  enableGoal = !enableGoal;
+  localStorage.setItem("enableGoal", enableGoal);
+
+  renderSettings();
+  renderHome(); // 即反映
+}
+//========
+
+
+//トグル動作==
+function toggleTags(e){
+  e.stopPropagation();
+
+  showTags = !showTags;
+  localStorage.setItem("showTags", showTags);
+
+  setupTagToggle(); // ←追加
+  renderSettings();
+  renderHome();
+}
+//========
+
+
+//====日付削除
+function removeDate(bookId, index){
+  const b = getBookById(bookId);
+  if(!b || !b.dates) return;
+
+  b.dates.splice(index,1);
+
+  saveData();
+  openDetail(b);
+}
+//========
+
+
+//====日付編集
+function editDate(bookId, index){
+  const b = books.find(x=> String(x.id) === String(bookId));
+  if(!b || !b.dates) return;
+
+  const input = document.createElement('input');
+  input.type = "date";
+  input.value = b.dates[index];
+
+  input.onchange = ()=>{
+    if(input.value){
+      b.dates[index] = input.value;
+      
+      saveData();
+      openDetail(b);
+    }
+  };
+
+  input.onblur = ()=>{
+    input.remove();
+  };
+
+  document.body.appendChild(input);
+  input.focus();
+}
+//========
+
+
+//⬛︎⑥====データ読み込み====
+async function loadData(){
+
+  // ここに入れる（関数の一番上）
+  if(!window.db || !window.doc || !window.getDoc){
+    console.log("⏳ Firebase待機中...");
+    setTimeout(loadData, 100);
+    return;
+  }
+
+  try{
+    // Firestoreから取得
+    const snap = await window.getDoc(
+      window.doc(window.db, "app", "data")
+    );
+    
+    
+    if(snap.exists()){
+      const data = snap.data();
+
+      books = data.books || [];
+      series = data.series || [];
+      characters = data.characters || [];
+      tagMaster = data.tagMaster || [];
+
+      // ローカルにも保存（バックアップ）
+      localStorage.setItem("bookAppData",JSON.stringify(data));
+
+      console.log("Firestoreから読み込み");
+
+    } else {
+
+      // Firestore空ならローカル
+      const saved = localStorage.getItem("bookAppData");
+
+      if(saved){
+        const data = JSON.parse(saved);
+
+        books = data.books || [];
+        series = data.series || [];
+        characters = data.characters || [];
+        tagMaster = data.tagMaster || [];
+
+        console.log("◆ローカルから読み込み");
+
+      } else {
+
+        // 🔸 初回だけGitHub
+        const res = await fetch(DATA_URL + "?t=" + Date.now());
+        const data = await res.json();
+
+        books = data.books || [];
+        series = data.series || [];
+        characters = data.characters || [];
+        tagMaster = data.tagMaster || [];
+
+        await saveData();
+
+        console.log("🌐 初期データ取得");
+      }
+    }
+
+    // UI初期化
+    renderTagFilter();
+    renderColorMode();
+    renderViewMode();
+    renderSort();
+    setupTagToggle();
+    renderTypeFilter();
+//    renderCalendar();
+    renderHome();
+    go('home');
+
+
+  }catch(e){
+    console.error(e);
+    alert("読み込み失敗: " + e.message);
+  }
+
+
+
+  const l = document.getElementById('loading');
+  if(l) l.classList.add('hidden');
+}//async function loadData()おわり
+
+// 初回ロード
+window.addEventListener("load", ()=>{
+  loadData();
+  console.log("ここまで読めてる");
 });
