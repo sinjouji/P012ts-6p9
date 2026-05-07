@@ -465,21 +465,22 @@ async function checkClothesBonus(ukey, addPts) {
   const count = u.clothes_count || 0;
   const last  = u.clothes_last_date;
   const today = dailyDate;
+  // 同じ日に2回カウントしない
   if (last === today) return;
-  const yday = offsetDate(today, -1);
-  const newCount = last === yday ? count + 1 : 1;
+  // 累計でインクリメント（連続チェックなし）
+  const newCount = count + 1;
   if (newCount >= 7) {
-    // ボーナス付与
+    // 7日累計達成 → ボーナス付与・リセット
     const day     = getDayData();
     const ts      = new Date().toISOString();
     const logId   = 'pl_bonus_' + Date.now();
     const basePath= `users/${ukey}/daily/${dailyDate}`;
     await dbUpdate(basePath, {
       total_points: (day.total_points||0) + addPts + 10,
-      [`point_logs/${logId}`]: { id:logId, item_id:0, item_name:'明日の服ボーナス（7日連続）', points_added:10, time_added:0, timestamp:ts },
+      [`point_logs/${logId}`]: { id:logId, item_id:0, item_name:'明日の服ボーナス（累計7日達成）', points_added:10, time_added:0, timestamp:ts },
     });
     await dbUpdate(`users/${ukey}`, { clothes_count:0, clothes_last_date:today });
-    setTimeout(() => toast('🎉 7日連続！ボーナス +10P', 'info', 4000), 600);
+    setTimeout(() => toast('🎉 累計7日達成！ボーナス +10P', 'info', 4000), 600);
   } else {
     await dbUpdate(`users/${ukey}`, { clothes_count:newCount, clothes_last_date:today });
   }
@@ -617,14 +618,14 @@ function renderSummary() {
   setText('sum-yen',  (ep * ypp).toLocaleString() + '円');
 
   const cnt = u.clothes_count || 0;
-  setText('clothes-num', cnt + '日');
+  setText('clothes-num', cnt + ' / 7日');
   const dotsWrap = g('clothes-dots');
   if (dotsWrap) {
     dotsWrap.innerHTML = '';
     for (let i=1;i<=7;i++) {
       const d = document.createElement('div');
       d.className = 'dot'+(i<=cnt?' on':'');
-      d.textContent = i;
+      // 数字なし・シンプルな●○ゲージ
       dotsWrap.appendChild(d);
     }
   }
