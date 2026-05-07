@@ -136,7 +136,14 @@ async function dbSet(path, value) {
 
 async function dbUpdate(path, updates) {
   if (db) {
-    await update(ref(db, path), updates);
+    // Firebaseのupdate()はスラッシュ区切りのキーを絶対パスとして扱う必要がある
+    // ref(db, path)に対してネストキーを渡すと正しく動かないため、
+    // ルートrefに対して絶対パスのflatなupdatesとして渡す
+    const flatUpdates = {};
+    for (const [k, v] of Object.entries(updates)) {
+      flatUpdates[`${path}/${k}`] = v;
+    }
+    await update(ref(db, '/'), flatUpdates);
   } else {
     for (const [k, v] of Object.entries(updates)) {
       setNestedValue(appData, path + '/' + k, v);
@@ -470,7 +477,8 @@ async function pressItem(itemId) {
       await checkClothesBonus(ukey, add_p);
     }
   } catch (errMsg) {
-    toast(errMsg, 'ng');
+    console.error('pressItem error:', errMsg);
+    toast(typeof errMsg === 'string' ? errMsg : 'エラーが発生しました', 'ng');
   }
   if (btn) btn.disabled = false;
 }
@@ -533,6 +541,7 @@ window.setSign = function(btn) {
 window.setDesc = function(chip) { g('m-desc').value = chip.textContent; };
 
 window.submitManual = async function() {
+  try {
   const sign = g('sign-val').value || '+';
   let pts    = parseInt(g('m-pts').value || '0');
   let mins   = parseInt(g('m-mins').value || '0');
@@ -555,6 +564,7 @@ window.submitManual = async function() {
   closeModal('manual-modal');
   ['m-pts','m-mins','m-desc'].forEach(id => { const el=g(id); if(el) el.value=''; });
   toast('追加しました ✓','ok');
+  } catch(e) { console.error('submitManual error:', e); toast('追加エラー','ng'); }
 };
 
 
