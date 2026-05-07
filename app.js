@@ -143,7 +143,12 @@ async function dbUpdate(path, updates) {
     for (const [k, v] of Object.entries(updates)) {
       flatUpdates[`${path}/${k}`] = v;
     }
-    await update(ref(db, '/'), flatUpdates);
+    try {
+      await update(ref(db, '/'), flatUpdates);
+    } catch(e) {
+      console.error('Firebase update error:', e, flatUpdates);
+      throw new Error('Firebase保存エラー: ' + e.message);
+    }
   } else {
     for (const [k, v] of Object.entries(updates)) {
       setNestedValue(appData, path + '/' + k, v);
@@ -334,14 +339,18 @@ window.goDaily = function(uid, date) {
 let dailyUser = 1;
 let dailyDate = todayStr();
 
-function getDayData() {
-  const ukey = dailyUser === 1 ? 'son' : 'daughter';
-  const u    = appData.users[ukey] || {};
-  if (!u.daily) u.daily = {};
-  if (!u.daily[dailyDate]) {
-    u.daily[dailyDate] = { total_points:0, total_time_minutes:0, item_states:{}, point_logs:{}, manual_logs:{} };
+function getDayData(ukey, date) {
+  // ukey/date を省略した場合は現在のデイリー表示に合わせる
+  if (!ukey) ukey = dailyUser === 1 ? 'son' : 'daughter';
+  if (!date) date = dailyDate;
+  // appData.users[ukey] が存在しない場合も appData に直接書く
+  if (!appData.users)       appData.users       = {};
+  if (!appData.users[ukey]) appData.users[ukey] = { clothes_count:0, clothes_last_date:null, exchange_logs:{}, daily:{} };
+  if (!appData.users[ukey].daily) appData.users[ukey].daily = {};
+  if (!appData.users[ukey].daily[date]) {
+    appData.users[ukey].daily[date] = { total_points:0, total_time_minutes:0, item_states:{}, point_logs:{}, manual_logs:{} };
   }
-  return u.daily[dailyDate];
+  return appData.users[ukey].daily[date];
 }
 
 function renderDaily() {
@@ -418,69 +427,82 @@ function buildItemBtns(grid, items, states) {
 
 async function pressItem(itemId) {
   const item = (toArr(appData.items)).find(i => String(i.id) === String(itemId));
-  if (!item) return;
-  const btn = document.querySelector(`.item-btn[data-item-id="${itemId}"]`);
-  if (btn) btn.disabled = true;
+  if (!item) { console.warn('item not found:', itemId); return; }
 
-  const ukey  = dailyUser === 1 ? 'son' : 'daughter';
-  const day   = getDayData();
-  const sid   = String(itemId);
-  const st    = day.item_states[sid] || { press_count:0, point_count:0, time_count:0 };
+  const ukey = dailyUser === 1 ? 'son' : 'daughter';
+  const sid  = String(itemId);
 
-  // 制限チェック
-  try {
-    // 週1回
-    if (item.weekly_limit) {
-      const dow0 = new Date(dailyDate+'T00:00:00').getDay();
-      const sun  = offsetDate(dailyDate, -dow0);
-      const sat  = offsetDate(sun, 6);
-      const daily= appData.users[ukey]?.daily || {};
-      for (const [d, rec] of Object.entries(daily)) {
-        if (d >= sun && d <= sat && d !== dailyDate) {
-          if ((rec.item_states?.[sid]?.press_count || 0) > 0) throw '週1回の制限です';
-        }
+  // getDayData() で必ず appData に今日のレコードを作成してから取得
+  const day = getDayData(ukey, dailyDate);
+  if (!day.item_states)  day.item_states  = {};
+  if (!day.point_logs)   day.point_logs   = {};
+  if (!day.manual_logs)  day.manual_logs  = {};
+
+  const st = day.item_states[sid] || { press_count:0, point_count:0, time_count:0 };
+
+  // ── 制限チェック ──
+  if (item.weekly_limit) {
+    const dow0 = new Date(dailyDate+'T00:00:00').getDay();
+    const sun  = offsetDate(dailyDate, -dow0);
+    const sat  = offsetDate(sun, 6);
+    const daily = appData.users[ukey]?.daily || {};
+    for (const [d, rec] of Object.entries(daily)) {
+      if (d >= sun && d <= sat && d !== dailyDate) {
+        if ((rec.item_states?.[sid]?.press_count || 0) > 0) { toast('週1回の制限です','ng'); return; }
       }
-      if (st.press_count > 0) throw '週1回の制限です（今週分）';
     }
-    if (item.daily_limit && st.press_count > 0) throw '今日はもう押せません';
-    if (item.max_per_day !== null && item.max_per_day !== undefined && st.press_count >= item.max_per_day)
-      throw `1日${item.max_per_day}回の制限です`;
-
-    let add_p = item.base_point|0;
-    let add_t = item.base_time|0;
-    if (item.max_point_per_day !== null && item.max_point_per_day !== undefined && st.point_count >= item.max_point_per_day) add_p = 0;
-    if (item.max_time_per_day  !== null && item.max_time_per_day  !== undefined && st.time_count  >= item.max_time_per_day)  add_t = 0;
-    if (add_p === 0 && add_t === 0 && (item.max_point_per_day !== null || item.max_time_per_day !== null))
-      throw '今日の上限に達しています';
-
-    const ts     = new Date().toISOString();
-    const logId  = 'pl_' + Date.now();
-    const newSt  = {
-      press_count: st.press_count + 1,
-      point_count: st.point_count + (add_p !== 0 ? 1 : 0),
-      time_count:  st.time_count  + (add_t !== 0 ? 1 : 0),
-    };
-
-    const basePath = `users/${ukey}/daily/${dailyDate}`;
-    await dbUpdate(basePath, {
-      total_points:      (day.total_points||0)       + add_p,
-      total_time_minutes:(day.total_time_minutes||0)  + add_t,
-      [`item_states/${sid}`]: newSt,
-      [`point_logs/${logId}`]: { id:logId, item_id:parseInt(itemId), item_name:item.name, points_added:add_p, time_added:add_t, timestamp:ts },
-    });
-
-    if (btn) { btn.classList.add('anim-pop'); setTimeout(()=>btn?.classList.remove('anim-pop'), 300); }
-    toast(item.name + ' ✓', 'ok');
-
-    // 明日の服ボーナス
-    if (item.item_key === 'ashita_no_fuku' && st.press_count === 0) {
-      await checkClothesBonus(ukey, add_p);
-    }
-  } catch (errMsg) {
-    console.error('pressItem error:', errMsg);
-    toast(typeof errMsg === 'string' ? errMsg : 'エラーが発生しました', 'ng');
+    if (st.press_count > 0) { toast('週1回の制限です（今週分）','ng'); return; }
   }
-  if (btn) btn.disabled = false;
+  if (item.daily_limit && st.press_count > 0) { toast('今日はもう押せません','ng'); return; }
+  if (item.max_per_day != null && st.press_count >= item.max_per_day) {
+    toast(`1日${item.max_per_day}回の制限です`,'ng'); return;
+  }
+
+  let add_p = item.base_point|0;
+  let add_t = item.base_time|0;
+  if (item.max_point_per_day != null && st.point_count >= item.max_point_per_day) add_p = 0;
+  if (item.max_time_per_day  != null && st.time_count  >= item.max_time_per_day)  add_t = 0;
+  if (add_p === 0 && add_t === 0 && (item.max_point_per_day != null || item.max_time_per_day != null)) {
+    toast('今日の上限に達しています','ng'); return;
+  }
+
+  const ts    = new Date().toISOString();
+  const logId = 'pl_' + Date.now();
+  const newSt = {
+    press_count: (st.press_count||0) + 1,
+    point_count: (st.point_count||0) + (add_p !== 0 ? 1 : 0),
+    time_count:  (st.time_count ||0) + (add_t !== 0 ? 1 : 0),
+  };
+
+  // ── 1. ローカル appData を先に更新（オプティミスティック更新）──
+  day.total_points       = (day.total_points||0)      + add_p;
+  day.total_time_minutes = (day.total_time_minutes||0) + add_t;
+  day.item_states[sid]   = newSt;
+  day.point_logs[logId]  = { id:logId, item_id:parseInt(itemId), item_name:item.name,
+                              points_added:add_p, time_added:add_t, timestamp:ts };
+
+  // ── 2. 画面をすぐに更新 ──
+  renderDaily();
+  const btn = document.querySelector(`.item-btn[data-item-id="${itemId}"]`);
+  if (btn) { btn.classList.add('anim-pop'); setTimeout(()=>btn?.classList.remove('anim-pop'), 300); }
+  toast(item.name + ' ✓', 'ok');
+
+  // ── 3. Firebase に書き込み（非同期・バックグラウンド）──
+  const basePath = `users/${ukey}/daily/${dailyDate}`;
+  dbUpdate(basePath, {
+    total_points:      day.total_points,
+    total_time_minutes:day.total_time_minutes,
+    [`item_states/${sid}`]: newSt,
+    [`point_logs/${logId}`]: day.point_logs[logId],
+  }).catch(e => {
+    console.error('pressItem Firebase error:', e);
+    toast('保存エラー（再試行してください）','ng');
+  });
+
+  // 明日の服ボーナス
+  if (item.item_key === 'ashita_no_fuku' && (st.press_count||0) === 0) {
+    checkClothesBonus(ukey, add_p);
+  }
 }
 
 async function checkClothesBonus(ukey, addPts) {
@@ -541,9 +563,8 @@ window.setSign = function(btn) {
 window.setDesc = function(chip) { g('m-desc').value = chip.textContent; };
 
 window.submitManual = async function() {
-  try {
   const sign = g('sign-val').value || '+';
-  let pts    = parseInt(g('m-pts').value || '0');
+  let pts    = parseInt(g('m-pts').value  || '0');
   let mins   = parseInt(g('m-mins').value || '0');
   const desc = g('m-desc').value.trim() || '手動追加';
   if (pts === 0 && mins === 0) { toast('ポイントか時間を入力してください','ng'); return; }
@@ -551,20 +572,29 @@ window.submitManual = async function() {
   else              { pts =  Math.abs(pts); mins =  Math.abs(mins); }
 
   const ukey  = dailyUser === 1 ? 'son' : 'daughter';
-  const day   = getDayData();
+  const day   = getDayData(ukey, dailyDate);
+  if (!day.manual_logs) day.manual_logs = {};
   const ts    = new Date().toISOString();
   const logId = 'ml_' + Date.now();
-  const base  = `users/${ukey}/daily/${dailyDate}`;
 
-  await dbUpdate(base, {
-    total_points:      (day.total_points||0)      + pts,
-    total_time_minutes:(day.total_time_minutes||0) + mins,
-    [`manual_logs/${logId}`]: { id:logId, points:pts, time_minutes:mins, description:desc, timestamp:ts },
-  });
+  // 1. ローカル先行更新
+  day.total_points       = (day.total_points||0)      + pts;
+  day.total_time_minutes = (day.total_time_minutes||0) + mins;
+  day.manual_logs[logId] = { id:logId, points:pts, time_minutes:mins, description:desc, timestamp:ts };
+
+  // 2. モーダルを閉じて画面更新
   closeModal('manual-modal');
   ['m-pts','m-mins','m-desc'].forEach(id => { const el=g(id); if(el) el.value=''; });
+  renderDaily();
   toast('追加しました ✓','ok');
-  } catch(e) { console.error('submitManual error:', e); toast('追加エラー','ng'); }
+
+  // 3. Firebase書き込み（バックグラウンド）
+  const base = `users/${ukey}/daily/${dailyDate}`;
+  dbUpdate(base, {
+    total_points:      day.total_points,
+    total_time_minutes:day.total_time_minutes,
+    [`manual_logs/${logId}`]: day.manual_logs[logId],
+  }).catch(e => { console.error('submitManual Firebase error:', e); toast('保存エラー','ng'); });
 };
 
 
@@ -908,7 +938,7 @@ g('log-list').addEventListener('click', e => {
     const type  = btn.dataset.type;
     const logId = btn.dataset.id;
     const ukey  = dailyUser === 1 ? 'son' : 'daughter';
-    const day   = getDayData();
+    const day   = getDayData(ukey, dailyDate);
     const base  = `users/${ukey}/daily/${dailyDate}`;
 
     if (type === 'point') {
@@ -923,26 +953,47 @@ g('log-list').addEventListener('click', e => {
         time_count:  Math.max(0, (st.time_count ||0) - (t !== 0 ? 1 : 0)),
       } : null;
 
-      if (newSt && newSt.press_count === 0) {
-        await dbRemove(`${base}/item_states/${sid}`);
-      } else if (newSt) {
-        await dbUpdate(`${base}/item_states`, { [sid]: newSt });
-      }
-      await dbUpdate(base, {
-        total_points:      (day.total_points||0)      - p,
-        total_time_minutes:(day.total_time_minutes||0) - t,
+      // 1. ローカル先行更新
+      day.total_points       = (day.total_points||0)      - p;
+      day.total_time_minutes = (day.total_time_minutes||0) - t;
+      delete day.point_logs[logId];
+      if (newSt && newSt.press_count === 0) delete day.item_states[sid];
+      else if (newSt) day.item_states[sid] = newSt;
+
+      // 2. 画面更新
+      renderDaily();
+      toast('削除しました');
+
+      // 3. Firebase（バックグラウンド）
+      const fbUpdates = {
+        total_points:      day.total_points,
+        total_time_minutes:day.total_time_minutes,
         [`point_logs/${logId}`]: null,
-      });
+      };
+      if (newSt && newSt.press_count === 0) fbUpdates[`item_states/${sid}`] = null;
+      else if (newSt) fbUpdates[`item_states/${sid}`] = newSt;
+      dbUpdate(base, fbUpdates).catch(e => { console.error('delete log error:', e); toast('削除保存エラー','ng'); });
+
     } else {
       const log = day.manual_logs?.[logId];
       if (!log) return;
-      await dbUpdate(base, {
-        total_points:      (day.total_points||0)      - (log.points||0),
-        total_time_minutes:(day.total_time_minutes||0) - (log.time_minutes||0),
+
+      // 1. ローカル先行更新
+      day.total_points       = (day.total_points||0)      - (log.points||0);
+      day.total_time_minutes = (day.total_time_minutes||0) - (log.time_minutes||0);
+      delete day.manual_logs[logId];
+
+      // 2. 画面更新
+      renderDaily();
+      toast('削除しました');
+
+      // 3. Firebase（バックグラウンド）
+      dbUpdate(base, {
+        total_points:      day.total_points,
+        total_time_minutes:day.total_time_minutes,
         [`manual_logs/${logId}`]: null,
-      });
+      }).catch(e => { console.error('delete manual error:', e); toast('削除保存エラー','ng'); });
     }
-    toast('削除しました');
   });
 });
 
