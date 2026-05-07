@@ -19,6 +19,8 @@ const fmtMin = m => { m=parseInt(m||0); if(!m)return'0分'; const s=m<0?'-':'',a
 const todayStr = () => new Date().toLocaleDateString('sv-SE');
 const dowJa    = d  => ['日','月','火','水','木','金','土'][new Date(d+'T00:00:00').getDay()];
 const offsetDate = (d,n) => { const dt=new Date(d+'T00:00:00'); dt.setDate(dt.getDate()+n); return dt.toLocaleDateString('sv-SE'); };
+// Firebaseは配列をオブジェクトに変換する→配列に戻すヘルパー
+const toArr = v => Array.isArray(v) ? v : Object.values(v || {});
 
 /* ══════════════════════════════════════
    datas.json の埋め込み初期データ
@@ -95,6 +97,10 @@ function setupRealtimeSync() {
     const val = snap.val();
     if (val) {
       appData = mergeDeep(JSON.parse(JSON.stringify(DEFAULT_DATA)), val);
+      // Firebaseは配列をオブジェクトに変換するため、items を配列に正規化
+      if (appData.items && !Array.isArray(appData.items)) {
+        appData.items = Object.values(appData.items).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+      }
     } else {
       // 初回：デフォルトデータをFirebaseに書き込む
       set(ref(db, '/'), DEFAULT_DATA);
@@ -223,7 +229,16 @@ document.querySelectorAll('.page-nav a').forEach(a => {
 // toggle
 document.addEventListener('click', e => {
   const hd = e.target.closest('.toggle-hd');
-  if (hd) hd.closest('.toggle')?.classList.toggle('open');
+  if (!hd) return;
+  const toggle = hd.closest('.toggle');
+  if (!toggle) return;
+  toggle.classList.toggle('open');
+  // Firebaseトグル（設定ページ最初のトグル）の開閉状態を記憶
+  const isFirst = toggle === document.querySelector('#view-settings .toggle');
+  if (isFirst) {
+    if (toggle.classList.contains('open')) localStorage.setItem('fb_toggle_opened','1');
+    else localStorage.removeItem('fb_toggle_opened');
+  }
 });
 // モーダル背景クリック
 document.addEventListener('click', e => {
@@ -266,7 +281,7 @@ function renderWeekCal(uid, containerId) {
   const sun   = offsetDate(today, -dow0);
   const ukey  = uid === 1 ? 'son' : 'daughter';
   const daily = appData.users[ukey]?.daily || {};
-  const items = appData.items || [];
+  const items = toArr(appData.items);
   const keyMap = {};
   items.forEach(it => { if (it.item_key) keyMap[it.id] = it.item_key; });
 
@@ -348,7 +363,7 @@ function renderItems() {
   grid.innerHTML = '';
   const ukey  = dailyUser === 1 ? 'son' : 'daughter';
   const col   = dailyUser === 1 ? 'visible_son' : 'visible_daughter';
-  const items = (appData.items || []).filter(i => i[col]).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
+  const items = (toArr(appData.items)).filter(i => i[col]).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
   const day   = getDayData();
   const states= day.item_states || {};
   const pos   = items.filter(i => i.is_positive);
@@ -395,7 +410,7 @@ function buildItemBtns(grid, items, states) {
 }
 
 async function pressItem(itemId) {
-  const item = (appData.items||[]).find(i => String(i.id) === String(itemId));
+  const item = (toArr(appData.items)).find(i => String(i.id) === String(itemId));
   if (!item) return;
   const btn = document.querySelector(`.item-btn[data-item-id="${itemId}"]`);
   if (btn) btn.disabled = true;
@@ -713,6 +728,11 @@ function renderSettingsView() {
     setVal('s-pph', s.points_per_hour || 50);
     setVal('s-ypp', s.yen_per_point   || 4);
     renderSettingsItems();
+    // Firebaseトグルは閉じた状態を維持（localStorageで記憶）
+    const fbToggle = document.querySelector('#view-settings .toggle');
+    if (fbToggle && !localStorage.getItem('fb_toggle_opened')) {
+      fbToggle.classList.remove('open');
+    }
     // Firebase設定フィールドを復元
     const cfg = loadFbConfig() || {};
     if (cfg.apiKey)      setVal('fb-apikey',      cfg.apiKey);
@@ -737,7 +757,7 @@ function renderSettingsItems() {
   const list = g('items-list');
   if (!list) return;
   try {
-  const items = appData.items || [];
+  const items = toArr(appData.items);
   if (!items.length) { list.innerHTML='<div class="empty">項目がありません</div>'; return; }
   list.innerHTML = '';
   items.forEach(item => {
@@ -754,13 +774,13 @@ function renderSettingsItems() {
     list.appendChild(row);
   });
   list.querySelectorAll('.edit-btn').forEach(b => {
-    b.addEventListener('click', ()=>openItemModal((appData.items||[]).find(i=>String(i.id)===b.dataset.id)));
+    b.addEventListener('click', ()=>openItemModal((toArr(appData.items)).find(i=>String(i.id)===b.dataset.id)));
   });
   list.querySelectorAll('.del-btn').forEach(b => {
     b.addEventListener('click', ()=>{
-      const item=(appData.items||[]).find(i=>String(i.id)===b.dataset.id);
+      const item=(toArr(appData.items)).find(i=>String(i.id)===b.dataset.id);
       confirmDlg(`「${item?.name}」を削除しますか？`, async ()=>{
-        const newItems=(appData.items||[]).filter(i=>String(i.id)!==b.dataset.id);
+        const newItems=(toArr(appData.items)).filter(i=>String(i.id)!==b.dataset.id);
         await dbSet('items', newItems);
         toast('削除しました');
       });
@@ -794,7 +814,7 @@ window.submitItemForm = async function() {
   const nint = id => { const v=g(id)?.value; return (v!==''&&v!==null&&v!==undefined)?parseInt(v):null; };
   const existId = parseInt(g('i-id').value||'0');
   const newItem = {
-    id:          existId || (Math.max(0,...(appData.items||[]).map(i=>i.id||0)) + 1),
+    id:          existId || (Math.max(0,...(toArr(appData.items)).map(i=>i.id||0)) + 1),
     name:        g('i-name').value.trim(),
     base_point:  parseInt(g('i-point').value)||0,
     base_time:   parseInt(g('i-time').value)||0,
@@ -809,7 +829,7 @@ window.submitItemForm = async function() {
     visible_daughter:g('i-daughter').checked,
     sort_order:  parseInt(g('i-sort').value)||0,
   };
-  const items = appData.items || [];
+  const items = toArr(appData.items);
   const newItems = existId ? items.map(i=>i.id===existId?newItem:i) : [...items, newItem];
   newItems.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
   await dbSet('items', newItems);

@@ -8,7 +8,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>ポイント管理</title>
 <link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" href="icon-512.png">
 <style>
 /* ══════════════════════════════════════
    CSS変数・リセット
@@ -500,7 +499,7 @@ input,select,textarea{font-family:var(--font)}
   <!-- ══ SETTINGS ══ -->
   <div class="view" id="view-settings">
     <!-- Firebase設定 -->
-    <div class="toggle open">
+    <div class="toggle" id="fb-toggle">
       <div class="toggle-hd"><span class="toggle-title">🔥 Firebase 接続設定</span><span class="toggle-icon">▼</span></div>
       <div class="toggle-body"><div class="toggle-inner">
         <div class="fb-banner">
