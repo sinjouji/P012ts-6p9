@@ -7,6 +7,20 @@ import { getDatabase, ref, get, set, update, remove, onValue }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
 /* ══════════════════════════════════════
+   ユーティリティ（最初に定義）
+══════════════════════════════════════ */
+const g      = id => document.getElementById(id);
+const mkEl   = (t,c,tx) => { const e=document.createElement(t); e.className=c; if(tx!==undefined)e.textContent=tx; return e; };
+const setText= (id,t) => { const e=g(id); if(e) e.textContent=t; };
+const setVal = (id,v) => { const e=g(id); if(e) e.value=v; };
+const getVal = id => g(id)?.value??'';
+const setChk = (id,v) => { const e=g(id); if(e) e.checked=!!v; };
+const fmtMin = m => { m=parseInt(m||0); if(!m)return'0分'; const s=m<0?'-':'',a=Math.abs(m),h=Math.floor(a/60),r=a%60; return h?r?`${s}${h}時間${r}分`:`${s}${h}時間`:`${s}${r}分`; };
+const todayStr = () => new Date().toLocaleDateString('sv-SE');
+const dowJa    = d  => ['日','月','火','水','木','金','土'][new Date(d+'T00:00:00').getDay()];
+const offsetDate = (d,n) => { const dt=new Date(d+'T00:00:00'); dt.setDate(dt.getDate()+n); return dt.toLocaleDateString('sv-SE'); };
+
+/* ══════════════════════════════════════
    datas.json の埋め込み初期データ
 ══════════════════════════════════════ */
 const DEFAULT_DATA = {
@@ -56,11 +70,11 @@ function connectFirebase(cfg) {
 
 window.saveFbConfig = function() {
   const cfg = {
-    apiKey:            g('fb-apikey').value.trim(),
-    authDomain:        g('fb-authdomain').value.trim(),
-    databaseURL:       g('fb-dburl').value.trim(),
-    projectId:         g('fb-projectid').value.trim(),
-    appId:             g('fb-appid').value.trim(),
+    apiKey:            getVal('fb-apikey').trim(),
+    authDomain:        getVal('fb-authdomain').trim(),
+    databaseURL:       getVal('fb-dburl').trim(),
+    projectId:         getVal('fb-projectid').trim(),
+    appId:             getVal('fb-appid').trim(),
   };
   if (!cfg.apiKey || !cfg.databaseURL) { toast('APIキーとDatabase URLは必須です', 'ng'); return; }
   localStorage.setItem('fb_config', JSON.stringify(cfg));
@@ -740,17 +754,21 @@ function makeBar(id, labels, data, label, color) {
    設定
 ══════════════════════════════════════ */
 function renderSettingsView() {
-  const s = appData.settings || {};
-  g('s-pph').value = s.points_per_hour || 50;
-  g('s-ypp').value = s.yen_per_point   || 4;
-  renderSettingsItems();
-  // Firebase設定フィールドを復元
-  const cfg = loadFbConfig() || {};
-  if (cfg.apiKey)      g('fb-apikey').value      = cfg.apiKey;
-  if (cfg.authDomain)  g('fb-authdomain').value   = cfg.authDomain;
-  if (cfg.databaseURL) g('fb-dburl').value        = cfg.databaseURL;
-  if (cfg.projectId)   g('fb-projectid').value    = cfg.projectId;
-  if (cfg.appId)       g('fb-appid').value        = cfg.appId;
+  try {
+    const s = appData.settings || {};
+    setVal('s-pph', s.points_per_hour || 50);
+    setVal('s-ypp', s.yen_per_point   || 4);
+    renderSettingsItems();
+    // Firebase設定フィールドを復元
+    const cfg = loadFbConfig() || {};
+    if (cfg.apiKey)      setVal('fb-apikey',      cfg.apiKey);
+    if (cfg.authDomain)  setVal('fb-authdomain',  cfg.authDomain);
+    if (cfg.databaseURL) setVal('fb-dburl',       cfg.databaseURL);
+    if (cfg.projectId)   setVal('fb-projectid',   cfg.projectId);
+    if (cfg.appId)       setVal('fb-appid',       cfg.appId);
+  } catch(e) {
+    console.error('renderSettingsView error:', e);
+  }
 }
 
 window.saveSettings = async function() {
@@ -764,6 +782,7 @@ window.saveSettings = async function() {
 function renderSettingsItems() {
   const list = g('items-list');
   if (!list) return;
+  try {
   const items = appData.items || [];
   if (!items.length) { list.innerHTML='<div class="empty">項目がありません</div>'; return; }
   list.innerHTML = '';
@@ -793,6 +812,7 @@ function renderSettingsItems() {
       });
     });
   });
+  } catch(e) { console.error('renderSettingsItems error:', e); }
 }
 
 window.openItemModal = function(item) {
@@ -815,7 +835,7 @@ window.openItemModal = function(item) {
 };
 
 window.submitItemForm = async function() {
-  const name = getVal('i-id-name')||getVal('i-name');
+  // name validation below
   if (!g('i-name').value.trim()) { toast('名前は必須です','ng'); return; }
   const nint = id => { const v=g(id)?.value; return (v!==''&&v!==null&&v!==undefined)?parseInt(v):null; };
   const existId = parseInt(g('i-id').value||'0');
@@ -881,16 +901,7 @@ window.closeModal = id => g(id)?.classList.remove('open');
 /* ══════════════════════════════════════
    ユーティリティ
 ══════════════════════════════════════ */
-const g      = id => document.getElementById(id);
-const mkEl   = (t,c,tx) => { const e=document.createElement(t); e.className=c; if(tx!==undefined)e.textContent=tx; return e; };
-const setText= (id,t) => { const e=g(id); if(e) e.textContent=t; };
-const setVal = (id,v) => { const e=g(id); if(e) e.value=v; };
-const getVal = id => g(id)?.value??'';
-const setChk = (id,v) => { const e=g(id); if(e) e.checked=!!v; };
-const fmtMin = m => { m=parseInt(m||0); if(!m)return'0分'; const s=m<0?'-':'',a=Math.abs(m),h=Math.floor(a/60),r=a%60; return h?r?`${s}${h}時間${r}分`:`${s}${h}時間`:`${s}${r}分`; };
-const todayStr = () => new Date().toLocaleDateString('sv-SE');
-const dowJa    = d  => ['日','月','火','水','木','金','土'][new Date(d+'T00:00:00').getDay()];
-const offsetDate = (d,n) => { const dt=new Date(d+'T00:00:00'); dt.setDate(dt.getDate()+n); return dt.toLocaleDateString('sv-SE'); };
+
 
 /* ══════════════════════════════════════
    起動
