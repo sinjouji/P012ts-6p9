@@ -810,7 +810,7 @@ function renderSettingsItems() {
     const val = [(item.base_point?(item.base_point>0?'+':'')+item.base_point+'P':''), (item.base_time?(item.base_time>0?'+':'')+item.base_time+'分':'')].filter(Boolean).join(' ');
     const vis = [item.visible_son?'息子':'',item.visible_daughter?'娘':''].filter(Boolean).join('・');
     const row = document.createElement('div'); row.className='set-row';
-    row.innerHTML=`<div class="rm"><div class="rn">${item.name} <span class="text-lt" style="font-size:.78rem;font-weight:400">${val}</span></div><div class="rs">${lim} ／ 表示：${vis||'なし'}</div></div><div class="ra"><button class="edit-btn" data-id="${item.id}">編集</button><button class="del-btn" data-id="${item.id}">削除</button></div>`;
+    row.innerHTML=`<div class="rm"><div class="rn">${item.name} <span class="text-lt" style="font-size:.78rem;font-weight:400">${val}</span></div><div class="rs">${lim} ／ 表示：${vis||'なし'} ／ <span style="color:var(--primary);font-weight:700">順：${item.sort_order??'－'}</span></div></div><div class="ra"><button class="edit-btn" data-id="${item.id}">編集</button><button class="del-btn" data-id="${item.id}">削除</button></div>`;
     list.appendChild(row);
   });
   list.querySelectorAll('.edit-btn').forEach(b => {

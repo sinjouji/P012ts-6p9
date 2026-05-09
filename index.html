@@ -207,8 +207,9 @@ input,select,textarea{font-family:var(--font)}
 ══════════════════════════════════════ */
 .fg{margin-bottom:12px}
 .fg label{display:block;font-size:.8rem;font-weight:600;color:var(--text-md);margin-bottom:4px}
-.fg input,.fg select,.fg textarea{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:.88rem;background:var(--surface);color:var(--text);transition:border-color var(--tr)}
+.fg input,.fg select,.fg textarea{width:100%;max-width:100%;box-sizing:border-box;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:.88rem;background:var(--surface);color:var(--text);transition:border-color var(--tr)}
 .fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(47,104,68,.1)}
+input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
 .form-row{display:flex;gap:10px}
 .form-row .fg{flex:1}
 .form-check{display:flex;align-items:center;gap:7px;margin:5px 0}
