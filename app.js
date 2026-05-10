@@ -5,7 +5,7 @@
 import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, get, set, update, remove, onValue }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
-//import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 //const app = initializeApp(firebaseConfig);
 //const auth = getAuth();
@@ -91,6 +91,7 @@ const cfg = {
   projectId:   getVal('fb-projectid').trim(),
   appId:       getVal('fb-appid').trim(),
 };
+
 
 // ▼ Firebase 初期化
 const app = initializeApp(cfg);
