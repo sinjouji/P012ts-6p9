@@ -384,9 +384,9 @@ function renderWeekCal(uid, containerId) {
 window.goDaily = function(uid, date) {
   dailyUser = uid;
   dailyDate = date || todayStr();
-  // ユーザー切替フラグをリセット（renderDailyHealthが強制クリアするよう）
+  // ユーザー・日付切替フラグをリセット（renderDailyHealthが強制クリアするよう）
   const ht = g('health-toggle');
-  if (ht) delete ht.dataset.renderedUser;
+  if (ht) delete ht.dataset.renderedKey;
   goView('daily');
 };
 
@@ -960,6 +960,7 @@ function toTags() {
 ══════════════════════════════════════ */
 function renderDailyHealth() {
   const uid  = dailyUser;   // スナップショット
+  const date = dailyDate;   // スナップショット
   const ukey = uid === 1 ? 'son' : 'daughter';
   const col  = uid === 1 ? 'visible_son' : 'visible_daughter';
   const ht   = g('health-toggle');
@@ -967,16 +968,17 @@ function renderDailyHealth() {
   const ma   = g('memo-area');
   const tw   = g('daily-tags');
 
-  // ユーザーが切り替わった場合は必ず強制クリア
-  const prevUser = ht?.dataset.renderedUser;
-  const userChanged = prevUser !== String(uid);
-  if (ht) ht.dataset.renderedUser = String(uid);
+  // ユーザーまたは日付が変わった場合は強制クリア
+  const prevKey = ht?.dataset.renderedKey;
+  const curKey  = `${uid}_${date}`;
+  const changed = prevKey !== curKey;
+  if (ht) ht.dataset.renderedKey = curKey;
 
-  const day = getDayData(ukey, dailyDate);
+  const day = getDayData(ukey, date);
 
-  // 体温：ユーザー切替時は強制クリア、同一ユーザーでフォーカス中は skip
+  // 体温：切替時は強制クリア、同一コンテキストでフォーカス中は skip
   if (ti) {
-    if (userChanged || document.activeElement !== ti) {
+    if (changed || document.activeElement !== ti) {
       ti.value = day.temperature ?? '';
     }
   }
@@ -1001,9 +1003,9 @@ function renderDailyHealth() {
     if (!tags.length) tw.innerHTML = '<span class="text-lt text-xs">設定でタグを追加してください</span>';
   }
 
-  // メモ：ユーザー切替時は強制クリア、同一ユーザーでフォーカス中は skip
+  // メモ：切替時は強制クリア、同一コンテキストでフォーカス中は skip
   if (ma) {
-    if (userChanged || document.activeElement !== ma) {
+    if (changed || document.activeElement !== ma) {
       ma.value = day.memo || '';
     }
   }
@@ -1028,8 +1030,11 @@ window.saveTemp = async function() {
   const uid  = dailyUser;        // 呼び出し時点でスナップショット
   const date = dailyDate;
   const ukey = uid === 1 ? 'son' : 'daughter';
-  const val  = parseFloat(g('temp-input')?.value || '');
-  if (isNaN(val) || val < 35 || val > 42) { toast('体温は35〜42℃で入力してください','ng'); return; }
+  const raw  = g('temp-input')?.value.trim() || '';
+  const val  = raw === '' ? null : parseFloat(raw);
+  if (val !== null && (isNaN(val) || val < 30 || val > 45)) {
+    toast('体温の値が正しくありません','ng'); return;
+  }
   getDayData(ukey, date).temperature = val;
   const saved = g('temp-saved');
   if (saved) { saved.style.opacity = '1'; setTimeout(() => saved.style.opacity = '0', 1800); }
@@ -1349,9 +1354,10 @@ window.closeModal = id => g(id)?.classList.remove('open');
 ══════════════════════════════════════ */
 
 // 日付ナビ
-g('btn-prev').addEventListener('click',  () => { dailyDate = offsetDate(dailyDate,-1); renderDaily(); });
-g('btn-next').addEventListener('click',  () => { dailyDate = offsetDate(dailyDate,+1); renderDaily(); });
-g('btn-today').addEventListener('click', () => { dailyDate = todayStr(); renderDaily(); });
+const resetHealthKey = () => { const ht=g('health-toggle'); if(ht) delete ht.dataset.renderedKey; };
+g('btn-prev').addEventListener('click',  () => { dailyDate = offsetDate(dailyDate,-1); resetHealthKey(); renderDaily(); });
+g('btn-next').addEventListener('click',  () => { dailyDate = offsetDate(dailyDate,+1); resetHealthKey(); renderDaily(); });
+g('btn-today').addEventListener('click', () => { dailyDate = todayStr();               resetHealthKey(); renderDaily(); });
 
 // ログ削除（イベント委譲）
 g('log-list').addEventListener('click', e => {
