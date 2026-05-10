@@ -288,6 +288,42 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
   :root{--bg:#141814;--surface:#1e241e;--surface2:#262e26;--text:#e8ece8;--text-md:#b0b8b0;--text-lt:#778877;--border:#334433;--border-lt:#2a342a}
   .page-nav{border-bottom-color:var(--border)}
 }
+
+/* ══ タグチップ ══ */
+.tag-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.72rem;font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:all .15s;user-select:none;-webkit-tap-highlight-color:transparent}
+.tag-chip.active{opacity:1}
+.tag-chip.inactive{opacity:.35}
+.tag-chip-del{background:none;border:none;font-size:.7rem;cursor:pointer;padding:0 0 0 2px;opacity:.6;line-height:1}
+.tags-wrap{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+/* ══ 体温・メモ ══ */
+.temp-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.temp-input{width:90px;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:1rem;font-weight:700;text-align:center;background:var(--surface);color:var(--text);transition:border-color .15s}
+.temp-input:focus{outline:none;border-color:var(--primary)}
+.temp-unit{font-size:.85rem;color:var(--text-lt);font-weight:600}
+.temp-saved{font-size:.75rem;color:var(--primary);opacity:0;transition:opacity .3s}
+.memo-area{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:.85rem;resize:none;background:var(--surface);color:var(--text);font-family:var(--font);line-height:1.6;transition:border-color .15s}
+.memo-area:focus{outline:none;border-color:var(--primary)}
+.save-btn{padding:5px 12px;font-size:.78rem;background:var(--primary);color:#fff;border:none;border-radius:var(--r-sm);cursor:pointer;font-family:var(--font);font-weight:600;transition:background .15s}
+.save-btn:hover{background:var(--pri-lt)}
+/* ══ カラーパレット ══ */
+.color-palette{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.color-swatch{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;transition:all .15s;flex-shrink:0}
+.color-swatch.selected{border-color:#fff;box-shadow:0 0 0 2.5px #333;transform:scale(1.15)}
+/* ══ 検索 ══ */
+.search-bar{display:flex;gap:8px;margin-bottom:12px}
+.search-input{flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:.9rem;background:var(--surface);color:var(--text);font-family:var(--font)}
+.search-input:focus{outline:none;border-color:var(--primary)}
+.search-result{display:flex;flex-direction:column;gap:6px}
+.search-item{padding:10px 12px;background:var(--surface);border:1px solid var(--border-lt);border-radius:var(--r-sm);cursor:pointer;transition:background .15s}
+.search-item:hover{background:var(--surface2)}
+.search-item .si-date{font-weight:700;font-size:.85rem;color:var(--primary)}
+.search-item .si-temp{font-size:.78rem;color:var(--text-lt);margin-left:8px}
+.search-item .si-memo{font-size:.78rem;color:var(--text-md);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ══ サマリー月別ログ ══ */
+.month-log-tbl{width:100%;border-collapse:collapse;font-size:.8rem}
+.month-log-tbl th{background:var(--surface2);padding:5px 8px;text-align:left;font-size:.7rem;color:var(--text-lt);text-transform:uppercase;border-bottom:1px solid var(--border)}
+.month-log-tbl td{padding:6px 8px;border-bottom:1px solid var(--border-lt);vertical-align:middle}
+.month-log-tbl tr:last-child td{border-bottom:none}
 </style>
 </head>
 <body>
@@ -305,6 +341,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
   <a href="#summary"  data-view="summary">📊 まとめ</a>
   <a href="#trends"   data-view="trends">📉 推移</a>
   <a href="#settings" data-view="settings">⚙️ 設定</a>
+  <a href="#search"   data-view="search">🔍 検索</a>
 </nav>
 
 <!-- メインコンテンツ -->
@@ -466,7 +503,17 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
         <div class="ex-list" id="ex-list"></div>
       </div></div>
     </div>
-    <div class="mt12" style="text-align:center">
+    <!-- 月別ログ一覧 -->
+    <div class="toggle open">
+      <div class="toggle-hd"><span class="toggle-title">📅 今月のログ一覧</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <table class="month-log-tbl">
+          <thead><tr><th>日付</th><th>体温</th><th>タグ</th></tr></thead>
+          <tbody id="month-log-tbody"></tbody>
+        </table>
+      </div></div>
+    </div>
+  <div class="mt12" style="text-align:center">
       <button class="btn btn-outline" onclick="goView('trends')">📉 推移グラフへ</button>
     </div>
   </div>
@@ -484,6 +531,10 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
     <div class="toggle open">
       <div class="toggle-hd"><span class="toggle-title">⏱ 月ごと時間推移</span><span class="toggle-icon">▼</span></div>
       <div class="toggle-body"><div class="toggle-inner"><div class="chart-wrap"><canvas id="chart-time" height="200"></canvas></div></div></div>
+    </div>
+    <div class="toggle">
+      <div class="toggle-hd"><span class="toggle-title">🌡️ 体温推移（月平均）</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner"><div class="chart-wrap"><canvas id="chart-temp" height="200"></canvas></div></div></div>
     </div>
     <div class="toggle">
       <div class="toggle-hd"><span class="toggle-title">📅 年ごと推移</span><span class="toggle-icon">▼</span></div>
@@ -537,7 +588,16 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
         <div class="set-list" id="items-list"></div>
       </div></div>
     </div>
-    <!-- 服カウント -->
+    <!-- タグ管理 -->
+    <div class="toggle open" id="tag-settings-toggle">
+      <div class="toggle-hd"><span class="toggle-title">🏷️ タグの管理</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-body"><div class="toggle-inner">
+        <div style="margin-bottom:10px"><button class="btn btn-primary btn-sm" onclick="openTagModal(null)">＋ 新規タグを追加</button></div>
+        <div class="set-list" id="tags-list"></div>
+      </div></div>
+    </div>
+
+  <!-- 服カウント -->
     <div class="toggle">
       <div class="toggle-hd"><span class="toggle-title">👕 明日の服カウント管理</span><span class="toggle-icon">▼</span></div>
       <div class="toggle-body"><div class="toggle-inner">
@@ -558,6 +618,19 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
     </div>
   </div>
 
+  <!-- ══ SEARCH ══ -->
+  <div class="view" id="view-search">
+    <div class="user-tabs">
+      <button class="user-tab active" id="sr-tab-1" onclick="setSearchUser(1)">👦 息子</button>
+      <button class="user-tab"        id="sr-tab-2" onclick="setSearchUser(2)">👧 娘</button>
+    </div>
+    <div class="search-bar">
+      <input type="text" class="search-input" id="search-kw" placeholder="メモのキーワード...">
+    </div>
+    <div style="font-size:.78rem;font-weight:600;color:var(--text-md);margin-bottom:6px">タグで絞り込み</div>
+    <div class="tags-wrap" id="search-tags" style="margin-bottom:12px"></div>
+    <div class="search-result" id="search-result"></div>
+  </div>
 </div><!-- /page -->
 
 <!-- ══ モーダル群 ══ -->
@@ -644,6 +717,27 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
   </div>
 </div>
 
+<!-- タグ編集モーダル -->
+<div class="modal-bg" id="tag-modal">
+  <div class="modal-box">
+    <div class="modal-hd"><h3 id="tag-modal-title">タグを追加</h3><button class="modal-close" onclick="closeModal('tag-modal')">✕</button></div>
+    <input type="hidden" id="t-id">
+    <div class="fg"><label>タグ名 *</label><input type="text" id="t-name" placeholder="例: 発熱"></div>
+    <div class="fg">
+      <label>カラー</label>
+      <div class="color-palette" id="color-palette"></div>
+      <input type="hidden" id="t-color" value="#e74c3c">
+    </div>
+    <div class="fg">
+      <div class="form-check"><input type="checkbox" id="t-son" checked><label for="t-son">息子に表示</label></div>
+      <div class="form-check"><input type="checkbox" id="t-daughter" checked><label for="t-daughter">娘に表示</label></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline w-full" onclick="closeModal('tag-modal')">キャンセル</button>
+      <button class="btn btn-primary w-full" onclick="submitTagForm()">保存する</button>
+    </div>
+  </div>
+</div>
 <!-- 確認ダイアログ -->
 <div class="modal-bg" id="confirm-bg">
   <div class="confirm-box">

@@ -40,6 +40,7 @@ const DEFAULT_DATA = {
     {id:10,name:"ゲーム30分",base_point:0,base_time:-30,daily_limit:true,weekly_limit:false,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:null,is_positive:false,visible_son:true,visible_daughter:true,sort_order:10},
     {id:11,name:"ゲーム60分",base_point:0,base_time:-60,daily_limit:true,weekly_limit:false,max_per_day:null,max_point_per_day:null,max_time_per_day:null,item_key:null,is_positive:false,visible_son:true,visible_daughter:true,sort_order:11}
   ],
+  tags: [],
   users: {
     son:      { clothes_count:0, clothes_last_date:null, exchange_logs:{}, daily:{} },
     daughter: { clothes_count:0, clothes_last_date:null, exchange_logs:{}, daily:{} }
@@ -97,9 +98,12 @@ function setupRealtimeSync() {
     const val = snap.val();
     if (val) {
       appData = mergeDeep(JSON.parse(JSON.stringify(DEFAULT_DATA)), val);
-      // Firebaseは配列をオブジェクトに変換するため、items を配列に正規化
+      // Firebaseは配列をオブジェクトに変換するため、items/tags を配列に正規化
       if (appData.items && !Array.isArray(appData.items)) {
         appData.items = Object.values(appData.items).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+      }
+      if (appData.tags && !Array.isArray(appData.tags)) {
+        appData.tags = Object.values(appData.tags);
       }
     } else {
       // 初回：デフォルトデータをFirebaseに書き込む
@@ -228,6 +232,7 @@ function renderView(view) {
   if (view === 'summary')  renderSummary();
   if (view === 'trends')   renderTrends();
   if (view === 'settings') renderSettingsView();
+  if (view === 'search')   renderSearch();
 }
 
 // nav リンク
@@ -638,6 +643,7 @@ function renderSummary() {
     }
   }
   renderExList(Object.values(u.exchange_logs||{}).sort((a,b)=>b.timestamp>a.timestamp?1:-1));
+  renderSummaryMonthLog(sumUser);
 }
 
 function renderExList(logs) {
@@ -768,6 +774,7 @@ function renderSettingsView() {
     setVal('s-pph', s.points_per_hour || 50);
     setVal('s-ypp', s.yen_per_point   || 4);
     renderSettingsItems();
+    renderTagsList();
     // Firebaseトグルは閉じた状態を維持（localStorageで記憶）
     const fbToggle = document.querySelector('#view-settings .toggle');
     if (fbToggle && !localStorage.getItem('fb_toggle_opened')) {
@@ -884,6 +891,341 @@ window.resetClothes = function(uid) {
     await dbUpdate(`users/${ukey}`, { clothes_count:0, clothes_last_date:null });
     toast(`${uname}リセット完了`,'ok');
   });
+};
+
+/* ══════════════════════════════════════
+   タグ定数（カラーパレット10色）
+══════════════════════════════════════ */
+const TAG_COLORS = [
+  '#e74c3c','#e67e22','#f1c40f','#2ecc71',
+  '#1abc9c','#3498db','#9b59b6','#e91e63',
+  '#795548','#607d8b'
+];
+
+function toTags() {
+  const t = appData.tags;
+  if (!t) return [];
+  return Array.isArray(t) ? t : Object.values(t);
+}
+
+/* ══════════════════════════════════════
+   デイリー：体温・タグ・メモ
+══════════════════════════════════════ */
+function renderDailyHealth() {
+  const ukey = dailyUser === 1 ? 'son' : 'daughter';
+  const col  = dailyUser === 1 ? 'visible_son' : 'visible_daughter';
+  const day  = getDayData(ukey, dailyDate);
+
+  // 体温
+  const ti = g('temp-input');
+  if (ti) ti.value = day.temperature || '';
+
+  // タグ
+  const tw = g('daily-tags');
+  if (tw) {
+    tw.innerHTML = '';
+    const tags    = toTags().filter(t => t[col]);
+    const selIds  = Array.isArray(day.tag_ids) ? day.tag_ids : Object.values(day.tag_ids || []);
+    tags.forEach(tag => {
+      const active = selIds.includes(String(tag.id));
+      const chip   = document.createElement('span');
+      chip.className = 'tag-chip ' + (active ? 'active' : 'inactive');
+      chip.style.background   = active ? tag.color : 'transparent';
+      chip.style.borderColor  = tag.color;
+      chip.style.color        = active ? '#fff' : tag.color;
+      chip.textContent        = tag.name;
+      chip.addEventListener('click', () => toggleDailyTag(String(tag.id)));
+      tw.appendChild(chip);
+    });
+    if (!tags.length) tw.innerHTML = '<span class="text-lt text-xs">設定でタグを追加してください</span>';
+  }
+
+  // メモ
+  const ma = g('memo-area');
+  if (ma) ma.value = day.memo || '';
+}
+
+async function toggleDailyTag(tagId) {
+  const ukey = dailyUser === 1 ? 'son' : 'daughter';
+  const day  = getDayData(ukey, dailyDate);
+  let ids    = Array.isArray(day.tag_ids) ? [...day.tag_ids]
+             : Object.values(day.tag_ids || []);
+  if (ids.includes(tagId)) ids = ids.filter(i => i !== tagId);
+  else ids.push(tagId);
+  day.tag_ids = ids;
+  renderDailyHealth();
+  const base = `users/${ukey}/daily/${dailyDate}`;
+  dbUpdate(base, { tag_ids: ids.length ? ids : null })
+    .catch(e => console.error('tag save error:', e));
+}
+
+window.saveTemp = async function() {
+  const ukey = dailyUser === 1 ? 'son' : 'daughter';
+  const day  = getDayData(ukey, dailyDate);
+  const val  = parseFloat(g('temp-input')?.value || '');
+  if (isNaN(val) || val < 35 || val > 42) { toast('体温は35〜42℃で入力してください','ng'); return; }
+  day.temperature = val;
+  const saved = g('temp-saved');
+  if (saved) { saved.style.opacity = '1'; setTimeout(() => saved.style.opacity = '0', 1800); }
+  const base = `users/${ukey}/daily/${dailyDate}`;
+  dbUpdate(base, { temperature: val }).catch(e => console.error('temp save error:', e));
+};
+
+window.saveMemo = async function() {
+  const ukey = dailyUser === 1 ? 'son' : 'daughter';
+  const day  = getDayData(ukey, dailyDate);
+  const val  = g('memo-area')?.value || '';
+  day.memo   = val;
+  const saved = g('memo-saved');
+  if (saved) { saved.style.opacity = '1'; setTimeout(() => saved.style.opacity = '0', 1800); }
+  const base = `users/${ukey}/daily/${dailyDate}`;
+  dbUpdate(base, { memo: val }).catch(e => console.error('memo save error:', e));
+};
+
+/* ══════════════════════════════════════
+   サマリー：月別ログ一覧
+══════════════════════════════════════ */
+function renderSummaryMonthLog(uid) {
+  const ukey  = uid === 1 ? 'son' : 'daughter';
+  const daily = appData.users[ukey]?.daily || {};
+  const tags  = toTags();
+  const tbody = g('month-log-tbody');
+  if (!tbody) return;
+  const month = (new Date()).toISOString().slice(0, 7);
+  const rows  = Object.entries(daily)
+    .filter(([d]) => d.startsWith(month))
+    .sort(([a],[b]) => b > a ? 1 : -1);
+  tbody.innerHTML = '';
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="3" class="empty">記録なし</td></tr>'; return; }
+  rows.forEach(([d, rec]) => {
+    const tr   = document.createElement('tr');
+    const temp = rec.temperature ? rec.temperature + '℃' : '－';
+    const ids  = Array.isArray(rec.tag_ids) ? rec.tag_ids : Object.values(rec.tag_ids || []);
+    const tagHtml = ids.map(tid => {
+      const tag = tags.find(t => String(t.id) === String(tid));
+      return tag ? `<span class="tag-chip active" style="background:${tag.color};color:#fff;border-color:${tag.color};font-size:.65rem;padding:1px 6px">${tag.name}</span>` : '';
+    }).join('');
+    tr.innerHTML = `<td style="white-space:nowrap;font-weight:600">${d.slice(5).replace('-','/')}</td><td style="text-align:center">${temp}</td><td>${tagHtml||'－'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ══════════════════════════════════════
+   推移：体温グラフ
+══════════════════════════════════════ */
+function renderTempGraph(uid) {
+  const ukey  = uid === 1 ? 'son' : 'daughter';
+  const daily = appData.users[ukey]?.daily || {};
+  const monthly = {};
+  Object.entries(daily).forEach(([d, rec]) => {
+    if (!rec.temperature) return;
+    const ym = d.slice(0, 7);
+    if (!monthly[ym]) monthly[ym] = [];
+    monthly[ym].push(rec.temperature);
+  });
+  const labels = Object.keys(monthly).sort();
+  const avgs   = labels.map(ym => {
+    const arr = monthly[ym];
+    return Math.round(arr.reduce((s, v) => s + v, 0) / arr.length * 10) / 10;
+  });
+  if (trCharts['chart-temp']) { trCharts['chart-temp'].destroy(); delete trCharts['chart-temp']; }
+  const ctx = g('chart-temp');
+  if (!ctx) return;
+  if (!labels.length) { ctx.parentElement.innerHTML += '<div class="empty">体温データがありません</div>'; return; }
+  trCharts['chart-temp'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '体温月平均(℃)',
+        data: avgs,
+        borderColor: '#e74c3c',
+        backgroundColor: 'rgba(231,76,60,.1)',
+        borderWidth: 2,
+        pointRadius: 4,
+        tension: 0.3,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { min: 35.5, max: 40, grid: { color: '#eee' },
+             ticks: { callback: v => v + '℃' } }
+      }
+    }
+  });
+}
+
+/* ══════════════════════════════════════
+   検索
+══════════════════════════════════════ */
+let searchUser = 1;
+window.setSearchUser = function(uid) {
+  searchUser = uid;
+  g('sr-tab-1').classList.toggle('active', uid===1);
+  g('sr-tab-2').classList.toggle('active', uid===2);
+  renderSearch();
+};
+
+let searchSelectedTags = [];
+
+function renderSearch() {
+  const col  = searchUser === 1 ? 'visible_son' : 'visible_daughter';
+  const tags = toTags().filter(t => t[col]);
+
+  // タグフィルター描画
+  const tw = g('search-tags');
+  if (tw) {
+    tw.innerHTML = '';
+    tags.forEach(tag => {
+      const active = searchSelectedTags.includes(String(tag.id));
+      const chip   = document.createElement('span');
+      chip.className = 'tag-chip ' + (active ? 'active' : 'inactive');
+      chip.style.background  = active ? tag.color : 'transparent';
+      chip.style.borderColor = tag.color;
+      chip.style.color       = active ? '#fff' : tag.color;
+      chip.textContent       = tag.name;
+      chip.addEventListener('click', () => {
+        const sid = String(tag.id);
+        if (searchSelectedTags.includes(sid)) searchSelectedTags = searchSelectedTags.filter(i=>i!==sid);
+        else searchSelectedTags.push(sid);
+        renderSearch();
+        runSearch();
+      });
+      tw.appendChild(chip);
+    });
+  }
+  runSearch();
+}
+
+function runSearch() {
+  const ukey  = searchUser === 1 ? 'son' : 'daughter';
+  const daily = appData.users[ukey]?.daily || {};
+  const kw    = (g('search-kw')?.value || '').trim().toLowerCase();
+  const tags  = toTags();
+  const result= g('search-result');
+  if (!result) return;
+
+  const entries = Object.entries(daily).sort(([a],[b]) => b > a ? 1 : -1);
+  const filtered = entries.filter(([d, rec]) => {
+    const memoMatch = !kw || (rec.memo || '').toLowerCase().includes(kw);
+    const tagIds    = Array.isArray(rec.tag_ids) ? rec.tag_ids : Object.values(rec.tag_ids || []);
+    const tagMatch  = searchSelectedTags.length === 0 ||
+                      searchSelectedTags.every(tid => tagIds.includes(tid));
+    return memoMatch && tagMatch;
+  });
+
+  result.innerHTML = '';
+  if (!filtered.length) {
+    result.innerHTML = '<div class="empty">該当する記録が見つかりません</div>'; return;
+  }
+  filtered.forEach(([d, rec]) => {
+    const tagIds  = Array.isArray(rec.tag_ids) ? rec.tag_ids : Object.values(rec.tag_ids || []);
+    const tagHtml = tagIds.map(tid => {
+      const tag = tags.find(t => String(t.id) === String(tid));
+      return tag ? `<span class="tag-chip active" style="background:${tag.color};color:#fff;border-color:${tag.color};font-size:.65rem;padding:1px 6px">${tag.name}</span>` : '';
+    }).join(' ');
+    const temp = rec.temperature ? `🌡️ ${rec.temperature}℃` : '';
+    const memo = rec.memo ? rec.memo.slice(0, 40) + (rec.memo.length > 40 ? '…' : '') : '';
+    const item = document.createElement('div');
+    item.className = 'search-item';
+    item.innerHTML = `<div><span class="si-date">${d}</span><span class="si-temp">${temp}</span></div>
+      <div class="tags-wrap" style="margin:4px 0">${tagHtml||''}</div>
+      ${memo ? `<div class="si-memo">${memo}</div>` : ''}`;
+    item.addEventListener('click', () => { goDaily(searchUser, d); });
+    result.appendChild(item);
+  });
+}
+
+// 検索バーのリアルタイム入力
+setTimeout(() => {
+  g('search-kw')?.addEventListener('input', runSearch);
+}, 100);
+
+/* ══════════════════════════════════════
+   設定：タグ管理
+══════════════════════════════════════ */
+function renderTagsList() {
+  const list = g('tags-list');
+  if (!list) return;
+  const tags = toTags();
+  if (!tags.length) { list.innerHTML = '<div class="empty">タグがありません</div>'; return; }
+  list.innerHTML = '';
+  tags.forEach(tag => {
+    const vis = [tag.visible_son?'息子':'', tag.visible_daughter?'娘':''].filter(Boolean).join('・');
+    const row = document.createElement('div');
+    row.className = 'set-row';
+    row.innerHTML = `
+      <div class="rm" style="display:flex;align-items:center;gap:8px">
+        <span class="tag-chip active" style="background:${tag.color};color:#fff;border-color:${tag.color}">${tag.name}</span>
+        <span class="text-xs text-lt">表示：${vis||'なし'}</span>
+      </div>
+      <div class="ra">
+        <button class="edit-btn" data-tid="${tag.id}">編集</button>
+        <button class="del-btn"  data-tid="${tag.id}">削除</button>
+      </div>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('.edit-btn[data-tid]').forEach(b => {
+    b.addEventListener('click', () => openTagModal(toTags().find(t => String(t.id) === b.dataset.tid)));
+  });
+  list.querySelectorAll('.del-btn[data-tid]').forEach(b => {
+    b.addEventListener('click', () => {
+      const tag = toTags().find(t => String(t.id) === b.dataset.tid);
+      confirmDlg(`「${tag?.name}」を削除しますか？`, async () => {
+        const newTags = toTags().filter(t => String(t.id) !== b.dataset.tid);
+        await dbSet('tags', newTags);
+        toast('削除しました');
+      });
+    });
+  });
+}
+
+window.openTagModal = function(tag) {
+  g('tag-modal-title').textContent = tag ? 'タグを編集' : 'タグを追加';
+  setVal('t-id',   tag?.id   ?? '');
+  setVal('t-name', tag?.name ?? '');
+  setVal('t-color', tag?.color ?? TAG_COLORS[0]);
+  setChk('t-son',      tag ? !!tag.visible_son      : true);
+  setChk('t-daughter', tag ? !!tag.visible_daughter : true);
+  // カラーパレット描画
+  const palette = g('color-palette');
+  if (palette) {
+    palette.innerHTML = '';
+    TAG_COLORS.forEach(c => {
+      const sw = document.createElement('div');
+      sw.className = 'color-swatch' + (c === (tag?.color ?? TAG_COLORS[0]) ? ' selected' : '');
+      sw.style.background = c;
+      sw.addEventListener('click', () => {
+        palette.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+        sw.classList.add('selected');
+        setVal('t-color', c);
+      });
+      palette.appendChild(sw);
+    });
+  }
+  openModal('tag-modal');
+};
+
+window.submitTagForm = async function() {
+  const name = g('t-name')?.value.trim();
+  if (!name) { toast('タグ名は必須です','ng'); return; }
+  const existId = g('t-id')?.value;
+  const newTag  = {
+    id:              existId ? parseInt(existId) : (Math.max(0, ...toTags().map(t=>t.id||0)) + 1),
+    name,
+    color:           getVal('t-color') || TAG_COLORS[0],
+    visible_son:     g('t-son')?.checked ?? true,
+    visible_daughter:g('t-daughter')?.checked ?? true,
+  };
+  const tags    = toTags();
+  const newTags = existId ? tags.map(t => String(t.id) === existId ? newTag : t) : [...tags, newTag];
+  await dbSet('tags', newTags);
+  closeModal('tag-modal');
+  toast('保存しました ✓','ok');
 };
 
 /* ══════════════════════════════════════
