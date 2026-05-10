@@ -3,8 +3,11 @@
  * Firebase Realtime Database を使ったリアルタイム同期版
  */
 import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getDatabase, ref, get, set, update, remove, onValue }
+import { getDatabase, ref, set, update, remove, onValue }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import {
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 /* ══════════════════════════════════════
    ユーティリティ（最初に定義）
@@ -52,38 +55,76 @@ const DEFAULT_DATA = {
 ══════════════════════════════════════ */
 let db = null;
 
-function loadFbConfig() {
-  try { return JSON.parse(localStorage.getItem('fb_config') || 'null'); } catch { return null; }
-}
+/* ══════════════════════════════════════
+   ▼▼▼ ここを自分の Firebase 設定値に書き換えてください ▼▼▼
+   Firebase Console → プロジェクトの設定 → マイアプリ → SDKの設定と構成
+══════════════════════════════════════ */
+const FIREBASE_CONFIG = {
+  apiKey:            'AIzaSyBbKlHBjsu9-qKpWVBBm4rFZinfJOek5Hc',
+  authDomain:        'mychls-p0intapp.firebaseapp.com',
+  databaseURL:       'https://mychls-p0intapp-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId:         'mychls-p0intapp',
+  appId:             '1:229330961921:web:c2cb7f851d35828b4ee200',
+};
+/* ▲▲▲ 書き換えここまで ▲▲▲ */
 
-function connectFirebase(cfg) {
-  if (!cfg?.apiKey || !cfg?.databaseURL) return false;
+let auth = null;
+
+function initFirebase() {
   try {
-    const app = initializeApp(cfg, 'points-app');
-    db = getDatabase(app);
-    setupRealtimeSync();
-    setSyncStatus('🟢 接続中');
-    return true;
-  } catch (e) {
-    setSyncStatus('🔴 接続失敗');
+    const app = initializeApp(FIREBASE_CONFIG, 'points-app');
+    db   = getDatabase(app);
+    auth = getAuth(app);
+    // 認証状態を監視
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        // ログイン済み → アプリ表示
+        g('login-screen').style.display = 'none';
+        g('app-screen').style.display   = 'block';
+        setSyncStatus('🟢 ' + user.email);
+        setupRealtimeSync();
+      } else {
+        // 未ログイン → ログイン画面
+        g('login-screen').style.display = 'flex';
+        g('app-screen').style.display   = 'none';
+        setSyncStatus('');
+      }
+    });
+  } catch(e) {
     console.error('Firebase init error:', e);
-    return false;
+    g('login-error').textContent = '設定エラー: ' + e.message;
+    g('login-screen').style.display = 'flex';
   }
 }
 
-window.saveFbConfig = function() {
-  const cfg = {
-    apiKey:            getVal('fb-apikey').trim(),
-    authDomain:        getVal('fb-authdomain').trim(),
-    databaseURL:       getVal('fb-dburl').trim(),
-    projectId:         getVal('fb-projectid').trim(),
-    appId:             getVal('fb-appid').trim(),
-  };
-  if (!cfg.apiKey || !cfg.databaseURL) { toast('APIキーとDatabase URLは必須です', 'ng'); return; }
-  localStorage.setItem('fb_config', JSON.stringify(cfg));
-  const ok = connectFirebase(cfg);
-  g('fb-status').textContent = ok ? '✅ 保存・接続しました' : '❌ 接続に失敗しました';
-  if (ok) toast('Firebase に接続しました 🔥', 'ok');
+window.doLogin = async function() {
+  const email = getVal('login-email').trim();
+  const pass  = getVal('login-pass').trim();
+  const errEl = g('login-error');
+  errEl.textContent = '';
+  if (!email || !pass) { errEl.textContent = 'メールとパスワードを入力してください'; return; }
+  const btn = g('login-btn');
+  btn.disabled = true; btn.textContent = 'ログイン中...';
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch(e) {
+    const msgs = {
+      'auth/invalid-email':    'メールアドレスの形式が正しくありません',
+      'auth/user-not-found':   'ユーザーが見つかりません',
+      'auth/wrong-password':   'パスワードが違います',
+      'auth/invalid-credential':'メールまたはパスワードが違います',
+      'auth/too-many-requests':'試行回数が多すぎます。しばらく待ってください',
+    };
+    errEl.textContent = msgs[e.code] || 'ログインに失敗しました: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'ログイン';
+  }
+};
+
+window.doLogout = async function() {
+  if (!auth) return;
+  await signOut(auth);
+  toast('ログアウトしました', 'info');
 };
 
 /* ══════════════════════════════════════
@@ -781,12 +822,7 @@ function renderSettingsView() {
       fbToggle.classList.remove('open');
     }
     // Firebase設定フィールドを復元
-    const cfg = loadFbConfig() || {};
-    if (cfg.apiKey)      setVal('fb-apikey',      cfg.apiKey);
-    if (cfg.authDomain)  setVal('fb-authdomain',  cfg.authDomain);
-    if (cfg.databaseURL) setVal('fb-dburl',       cfg.databaseURL);
-    if (cfg.projectId)   setVal('fb-projectid',   cfg.projectId);
-    if (cfg.appId)       setVal('fb-appid',       cfg.appId);
+
   } catch(e) {
     console.error('renderSettingsView error:', e);
   }
@@ -1360,14 +1396,7 @@ g('log-list').addEventListener('click', e => {
 
 // 初期化
 g('past-date').value = todayStr();
-
-// Firebase接続試行
-const cfg = loadFbConfig();
-if (cfg) {
-  connectFirebase(cfg);
-} else {
-  setSyncStatus('🟡 オフライン');
-  renderHome();
-}
-
 goView('home');
+
+// Firebase + Auth 起動
+initFirebase();
