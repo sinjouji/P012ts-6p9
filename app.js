@@ -150,12 +150,9 @@ function setupRealtimeSync() {
       // 初回：デフォルトデータをFirebaseに書き込む
       set(ref(db, '/'), DEFAULT_DATA);
     }
-    // デイリーページ以外は全更新。デイリーは strip のみ更新（フォーム上書き防止）
+    // デイリーページは全要素を更新
     if (currentView === 'daily') {
-      renderDayStrip();   // 数値だけ更新
-      renderItems();      // ボタン状態を更新
-      renderLogs();       // ログ更新
-      // renderDailyHealth() はユーザー操作時のみ（Firebase同期では呼ばない）
+      renderDaily();      // strip・items・logs・health を全更新
     } else {
       refreshCurrentView();
     }
@@ -428,6 +425,7 @@ function renderDaily() {
   setText('cum-time',   fmtMin(ct));
   renderItems();
   renderLogs();
+  renderDailyHealth();  // ← 毎回必ず呼ぶ
 }
 
 function renderItems() {
@@ -959,29 +957,20 @@ function toTags() {
    デイリー：体温・タグ・メモ
 ══════════════════════════════════════ */
 function renderDailyHealth() {
-  const uid  = dailyUser;   // スナップショット
-  const date = dailyDate;   // スナップショット
+  // 毎回呼び出し時点の uid/date をスナップショット → 必ず正しいデータを表示
+  const uid  = dailyUser;
+  const date = dailyDate;
   const ukey = uid === 1 ? 'son' : 'daughter';
   const col  = uid === 1 ? 'visible_son' : 'visible_daughter';
-  const ht   = g('health-toggle');
-  const ti   = g('temp-input');
-  const ma   = g('memo-area');
-  const tw   = g('daily-tags');
 
-  // ユーザーまたは日付が変わった場合は強制クリア
-  const prevKey = ht?.dataset.renderedKey;
-  const curKey  = `${uid}_${date}`;
-  const changed = prevKey !== curKey;
-  if (ht) ht.dataset.renderedKey = curKey;
+  // appData から該当ユーザー・日付のデータを取得（なければ空）
+  const day    = appData.users?.[ukey]?.daily?.[date] || {};
+  const ti     = g('temp-input');
+  const ma     = g('memo-area');
+  const tw     = g('daily-tags');
 
-  const day = getDayData(ukey, date);
-
-  // 体温：切替時は強制クリア、同一コンテキストでフォーカス中は skip
-  if (ti) {
-    if (changed || document.activeElement !== ti) {
-      ti.value = day.temperature ?? '';
-    }
-  }
+  // 体温：常に上書き（フォーカス中でも正しい値に戻す）
+  if (ti) ti.value = (day.temperature != null) ? day.temperature : '';
 
   // タグ
   if (tw) {
@@ -990,7 +979,7 @@ function renderDailyHealth() {
     const selIds = Array.isArray(day.tag_ids) ? day.tag_ids
                  : Object.values(day.tag_ids || []);
     tags.forEach(tag => {
-      const active = selIds.includes(String(tag.id));
+      const active = selIds.map(String).includes(String(tag.id));
       const chip   = document.createElement('span');
       chip.className = 'tag-chip ' + (active ? 'active' : 'inactive');
       chip.style.background  = active ? tag.color : 'transparent';
@@ -1003,12 +992,8 @@ function renderDailyHealth() {
     if (!tags.length) tw.innerHTML = '<span class="text-lt text-xs">設定でタグを追加してください</span>';
   }
 
-  // メモ：切替時は強制クリア、同一コンテキストでフォーカス中は skip
-  if (ma) {
-    if (changed || document.activeElement !== ma) {
-      ma.value = day.memo || '';
-    }
-  }
+  // メモ：常に上書き
+  if (ma) ma.value = day.memo || '';
 }
 
 async function toggleDailyTag(tagId) {
