@@ -100,31 +100,19 @@ signInAnonymously(auth)
 
 onAuthStateChanged(auth, user => {
   if (user) {
-
-// ログインボタン
-document.getElementById("login-btn").addEventListener("click", () => {
-  const email = document.getElementById("email").value;
-  const pass  = document.getElementById("password").value;
-
-  signInWithEmailAndPassword(auth, email, pass)
-    .catch(err => alert("ログイン失敗: " + err.message));
-});
-
-// 自動ログイン（ここが超重要）
-onAuthStateChanged(auth, user => {
-  if (user) {
     console.log("ログイン成功 UID:", user.uid);
 
-    // ログイン画面を隠す
-    document.getElementById("login-box").style.display = "none";
+    // ★ iPhone 用：画面に UID を表示
+    document.body.insertAdjacentHTML('beforeend',
+      `<div style="padding:10px; background:#eef; margin:10px 0;">
+         UID: ${user.uid}
+       </div>`);
 
     // ★ここから DB の処理を開始する
     startApp(user.uid);
   }
 });
 
-  }
-});
 
 
 // ▼ ここから Realtime Database の処理
