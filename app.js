@@ -5,6 +5,22 @@
 import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, get, set, update, remove, onValue }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth();
+
+signInAnonymously(auth)
+  .catch((error) => {
+    console.error("匿名ログイン失敗:", error);
+  });
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    console.log("ログイン成功 UID:", user.uid);
+  }
+});
+
 
 /* ══════════════════════════════════════
    ユーティリティ（最初に定義）
