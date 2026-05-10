@@ -79,51 +79,57 @@ function connectFirebase(cfg) {
 
 
 window.saveFbConfig = function() {
- // ▼ Firebase設定を入力欄から読み込む
-const cfg = {
-  apiKey:      getVal('fb-apikey').trim(),
-  authDomain:  getVal('fb-authdomain').trim(),
-  databaseURL: getVal('fb-dburl').trim(),
-  projectId:   getVal('fb-projectid').trim(),
-  appId:       getVal('fb-appid').trim(),
+  const cfg = {
+    apiKey:      getVal('fb-apikey').trim(),
+    authDomain:  getVal('fb-authdomain').trim(),
+    databaseURL: getVal('fb-dburl').trim(),
+    projectId:   getVal('fb-projectid').trim(),
+    appId:       getVal('fb-appid').trim(),
+  };
+
+  if (!cfg.apiKey || !cfg.databaseURL) {
+    toast('APIキーとDatabase URLは必須です', 'ng');
+    return;
+  }
+
+  localStorage.setItem('fb_config', JSON.stringify(cfg));
+  toast('Firebase設定を保存しました', 'ok');
+
+  // ★ ページをリロードして Auth → DB の順番で再接続
+  location.reload();
 };
 
+window.addEventListener('DOMContentLoaded', () => {
+  const cfg = loadFbConfig();
+  if (!cfg) {
+    console.log("Firebase設定なし");
+    return;
+  }
 
-// ▼ Firebase 初期化
-const app = initializeApp(cfg);
+  // Firebase 初期化
+  const app = initializeApp(cfg);
 
-// ▼ ★ここで Auth を初期化（cfg が揃った後なので安全）
-const auth = getAuth(app);
+  // Auth 初期化
+  const auth = getAuth(app);
 
-signInAnonymously(auth)
-  .catch(err => console.error("匿名ログイン失敗:", err));
+  signInAnonymously(auth)
+    .catch(err => console.error("匿名ログイン失敗:", err));
 
-onAuthStateChanged(auth, user => {
-  if (user) {
+  onAuthStateChanged(auth, user => {
+    if (!user) return;
+
     console.log("ログイン成功 UID:", user.uid);
 
-    // ★ iPhone 用：画面に UID を表示
+    // ★ UID を画面に表示
     document.body.insertAdjacentHTML('beforeend',
       `<div style="padding:10px; background:#eef; margin:10px 0;">
          UID: ${user.uid}
        </div>`);
 
-    // ★ここから DB の処理を開始する
-    startApp(user.uid);
-  }
+    // ★ ログイン後に DB 接続
+    connectFirebase(cfg);
+  });
 });
-
-
-
-// ▼ ここから Realtime Database の処理
-const db = getDatabase(app);
-
-  if (!cfg.apiKey || !cfg.databaseURL) { toast('APIキーとDatabase URLは必須です', 'ng'); return; }
-  localStorage.setItem('fb_config', JSON.stringify(cfg));
-  const ok = connectFirebase(cfg);
-  g('fb-status').textContent = ok ? '✅ 保存・接続しました' : '❌ 接続に失敗しました';
-  if (ok) toast('Firebase に接続しました 🔥', 'ok');
-};
 
 /* ══════════════════════════════════════
    アプリ状態（インメモリキャッシュ）
