@@ -456,6 +456,27 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
         <div class="items-grid" id="items-grid"><div class="loading"><div class="spinner"></div></div></div>
       </div></div>
     </div>
+  <!-- 体温・タグ・メモ -->
+  <div class="toggle mt12" id="health-toggle">
+    <div class="toggle-hd"><span class="toggle-title">🌡️ 体温・タグ・メモ</span><span class="toggle-icon">▼</span></div>
+    <div class="toggle-body"><div class="toggle-inner">
+      <div class="temp-row">
+        <input type="number" class="temp-input" id="temp-input" step="0.1" min="35" max="42" placeholder="36.5">
+        <span class="temp-unit">℃</span>
+        <button class="save-btn" onclick="saveTemp()">保存</button>
+        <span class="temp-saved" id="temp-saved">✓ 保存しました</span>
+      </div>
+      <div style="font-size:.78rem;font-weight:600;color:var(--text-md);margin-bottom:4px">タグ</div>
+      <div class="tags-wrap" id="daily-tags"></div>
+      <div style="font-size:.78rem;font-weight:600;color:var(--text-md);margin:10px 0 4px">メモ</div>
+      <textarea class="memo-area" id="memo-area" rows="4" placeholder="今日のメモ..."></textarea>
+      <div style="text-align:right;margin-top:5px">
+        <button class="save-btn" onclick="saveMemo()">メモを保存</button>
+        <span class="temp-saved" id="memo-saved" style="margin-left:6px">✓ 保存しました</span>
+      </div>
+    </div></div>
+  </div>
+
     <div class="card mt12" style="display:flex;align-items:center;justify-content:space-between">
       <span style="font-weight:700;font-size:.9rem">✏️ 手動追加</span>
       <button class="btn btn-outline btn-sm" onclick="openModal('manual-modal')">＋ 追加する</button>
