@@ -105,8 +105,15 @@ signInAnonymously(auth)
 onAuthStateChanged(auth, user => {
   if (user) {
     console.log("ログイン成功 UID:", user.uid);
+
+    // ★ iPhone 用：画面に UID を表示
+    document.body.insertAdjacentHTML('beforeend',
+      `<div style="padding:10px; background:#eef; margin:10px 0;">
+         UID: ${user.uid}
+       </div>`);
   }
 });
+
 
 // ▼ ここから Realtime Database の処理
 const db = getDatabase(app);
