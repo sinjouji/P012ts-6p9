@@ -83,13 +83,33 @@ function connectFirebase(cfg) {
 }
 
 window.saveFbConfig = function() {
-  const cfg = {
-    apiKey:            getVal('fb-apikey').trim(),
-    authDomain:        getVal('fb-authdomain').trim(),
-    databaseURL:       getVal('fb-dburl').trim(),
-    projectId:         getVal('fb-projectid').trim(),
-    appId:             getVal('fb-appid').trim(),
-  };
+ // ▼ Firebase設定を入力欄から読み込む
+const cfg = {
+  apiKey:      getVal('fb-apikey').trim(),
+  authDomain:  getVal('fb-authdomain').trim(),
+  databaseURL: getVal('fb-dburl').trim(),
+  projectId:   getVal('fb-projectid').trim(),
+  appId:       getVal('fb-appid').trim(),
+};
+
+// ▼ Firebase 初期化
+const app = initializeApp(cfg);
+
+// ▼ ★ここで Auth を初期化（cfg が揃った後なので安全）
+const auth = getAuth(app);
+
+signInAnonymously(auth)
+  .catch(err => console.error("匿名ログイン失敗:", err));
+
+onAuthStateChanged(auth, user => {
+  if (user) {
+    console.log("ログイン成功 UID:", user.uid);
+  }
+});
+
+// ▼ ここから Realtime Database の処理
+const db = getDatabase(app);
+
   if (!cfg.apiKey || !cfg.databaseURL) { toast('APIキーとDatabase URLは必須です', 'ng'); return; }
   localStorage.setItem('fb_config', JSON.stringify(cfg));
   const ok = connectFirebase(cfg);
