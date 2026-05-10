@@ -60,11 +60,11 @@ let db = null;
    Firebase Console → プロジェクトの設定 → マイアプリ → SDKの設定と構成
 ══════════════════════════════════════ */
 const FIREBASE_CONFIG = {
-  apiKey:            'AIzaSyBbKlHBjsu9-qKpWVBBm4rFZinfJOek5Hc',
-  authDomain:        'mychls-p0intapp.firebaseapp.com',
-  databaseURL:       'https://mychls-p0intapp-default-rtdb.asia-southeast1.firebasedatabase.app',
-  projectId:         'mychls-p0intapp',
-  appId:             '1:229330961921:web:c2cb7f851d35828b4ee200',
+  apiKey:            'YOUR_API_KEY',
+  authDomain:        'YOUR_PROJECT_ID.firebaseapp.com',
+  databaseURL:       'https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com',
+  projectId:         'YOUR_PROJECT_ID',
+  appId:             'YOUR_APP_ID',
 };
 /* ▲▲▲ 書き換えここまで ▲▲▲ */
 
@@ -150,7 +150,15 @@ function setupRealtimeSync() {
       // 初回：デフォルトデータをFirebaseに書き込む
       set(ref(db, '/'), DEFAULT_DATA);
     }
-    refreshCurrentView();
+    // デイリーページ以外は全更新。デイリーは strip のみ更新（フォーム上書き防止）
+    if (currentView === 'daily') {
+      renderDayStrip();   // 数値だけ更新
+      renderItems();      // ボタン状態を更新
+      renderLogs();       // ログ更新
+      // renderDailyHealth() はユーザー操作時のみ（Firebase同期では呼ばない）
+    } else {
+      refreshCurrentView();
+    }
   }, err => {
     setSyncStatus('🔴 同期エラー');
     console.error('DB sync error:', err);
@@ -376,6 +384,9 @@ function renderWeekCal(uid, containerId) {
 window.goDaily = function(uid, date) {
   dailyUser = uid;
   dailyDate = date || todayStr();
+  // ユーザー切替フラグをリセット（renderDailyHealthが強制クリアするよう）
+  const ht = g('health-toggle');
+  if (ht) delete ht.dataset.renderedUser;
   goView('daily');
 };
 
@@ -948,23 +959,34 @@ function toTags() {
    デイリー：体温・タグ・メモ
 ══════════════════════════════════════ */
 function renderDailyHealth() {
-  // dailyUserグローバルではなく、バッジテキストからも確認（同期ズレ防止）
-  const ukey = dailyUser === 1 ? 'son' : 'daughter';
-  const col  = dailyUser === 1 ? 'visible_son' : 'visible_daughter';
-  // 入力中のフォームを上書きしない（フォーカス中は skip）
-  const ti = g('temp-input');
-  const ma = g('memo-area');
+  const uid  = dailyUser;   // スナップショット
+  const ukey = uid === 1 ? 'son' : 'daughter';
+  const col  = uid === 1 ? 'visible_son' : 'visible_daughter';
+  const ht   = g('health-toggle');
+  const ti   = g('temp-input');
+  const ma   = g('memo-area');
+  const tw   = g('daily-tags');
+
+  // ユーザーが切り替わった場合は必ず強制クリア
+  const prevUser = ht?.dataset.renderedUser;
+  const userChanged = prevUser !== String(uid);
+  if (ht) ht.dataset.renderedUser = String(uid);
+
   const day = getDayData(ukey, dailyDate);
 
-  // 体温（フォーカス中は上書きしない）
-  if (ti && document.activeElement !== ti) ti.value = day.temperature ?? '';
+  // 体温：ユーザー切替時は強制クリア、同一ユーザーでフォーカス中は skip
+  if (ti) {
+    if (userChanged || document.activeElement !== ti) {
+      ti.value = day.temperature ?? '';
+    }
+  }
 
   // タグ
-  const tw = g('daily-tags');
   if (tw) {
     tw.innerHTML = '';
     const tags   = toTags().filter(t => t[col]);
-    const selIds = Array.isArray(day.tag_ids) ? day.tag_ids : Object.values(day.tag_ids || []);
+    const selIds = Array.isArray(day.tag_ids) ? day.tag_ids
+                 : Object.values(day.tag_ids || []);
     tags.forEach(tag => {
       const active = selIds.includes(String(tag.id));
       const chip   = document.createElement('span');
@@ -979,8 +1001,12 @@ function renderDailyHealth() {
     if (!tags.length) tw.innerHTML = '<span class="text-lt text-xs">設定でタグを追加してください</span>';
   }
 
-  // メモ（フォーカス中は上書きしない）
-  if (ma && document.activeElement !== ma) ma.value = day.memo || '';
+  // メモ：ユーザー切替時は強制クリア、同一ユーザーでフォーカス中は skip
+  if (ma) {
+    if (userChanged || document.activeElement !== ma) {
+      ma.value = day.memo || '';
+    }
+  }
 }
 
 async function toggleDailyTag(tagId) {

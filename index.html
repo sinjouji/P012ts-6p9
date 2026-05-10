@@ -50,7 +50,11 @@ input,select,textarea{font-family:var(--font)}
    ページナビ（ページ上部）
 ══════════════════════════════════════ */
 .page-nav{
-  display:flex;overflow-x:auto;scrollbar-width:none;
+  display:flex;overflow-x:auto;overflow-y:hidden;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain;
+  touch-action:pan-x;
   background:var(--surface);
   border-bottom:2px solid var(--border-lt);
   padding:0 4px;
