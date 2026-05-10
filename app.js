@@ -5,16 +5,33 @@
 import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, get, set, update, remove, onValue }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
-//const app = initializeApp(firebaseConfig);
-//const auth = getAuth();
+const auth = getAuth(app);
 
-//signInAnonymously(auth)
-//  .catch((error) => {console.error("匿名ログイン失敗:", error);});
+// ログインボタン
+document.getElementById("login-btn").addEventListener("click", () => {
+  const email = document.getElementById("email").value;
+  const pass  = document.getElementById("password").value;
 
-//onAuthStateChanged(auth, (user) => {
-//  if (user) {    console.log("ログイン成功 UID:", user.uid);}});
+  signInWithEmailAndPassword(auth, email, pass)
+    .catch(err => alert("ログイン失敗: " + err.message));
+});
+
+// 自動ログイン（ここが超重要）
+onAuthStateChanged(auth, user => {
+  if (user) {
+    console.log("ログイン成功 UID:", user.uid);
+
+    // ログイン画面を隠す
+    document.getElementById("login-box").style.display = "none";
+
+    // ★ここから DB の処理を開始する
+    startApp(user.uid);
+  }
+});
+//ここまで追加
 
 
 /* ══════════════════════════════════════
