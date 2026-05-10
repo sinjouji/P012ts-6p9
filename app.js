@@ -60,11 +60,11 @@ let db = null;
    Firebase Console → プロジェクトの設定 → マイアプリ → SDKの設定と構成
 ══════════════════════════════════════ */
 const FIREBASE_CONFIG = {
-  apiKey:            'YOUR_API_KEY',
-  authDomain:        'YOUR_PROJECT_ID.firebaseapp.com',
-  databaseURL:       'https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com',
-  projectId:         'YOUR_PROJECT_ID',
-  appId:             'YOUR_APP_ID',
+  apiKey:            'AIzaSyBbKlHBjsu9-qKpWVBBm4rFZinfJOek5Hc',
+  authDomain:        'mychls-p0intapp.firebaseapp.com',
+  databaseURL:       'https://mychls-p0intapp-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId:         'mychls-p0intapp',
+  appId:             '1:229330961921:web:c2cb7f851d35828b4ee200',
 };
 /* ▲▲▲ 書き換えここまで ▲▲▲ */
 
