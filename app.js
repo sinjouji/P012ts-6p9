@@ -5,16 +5,11 @@
 import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, get, set, update, remove, onValue }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
-//import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
-//const app = initializeApp(firebaseConfig);
-//const auth = getAuth();
+const auth = getAuth(app);
 
-//signInAnonymously(auth)
-//  .catch((error) => {console.error("匿名ログイン失敗:", error);});
-
-//onAuthStateChanged(auth, (user) => {
-//  if (user) {    console.log("ログイン成功 UID:", user.uid);}});
 
 
 /* ══════════════════════════════════════
@@ -82,20 +77,59 @@ function connectFirebase(cfg) {
   }
 }
 
+
 window.saveFbConfig = function() {
   const cfg = {
-    apiKey:            getVal('fb-apikey').trim(),
-    authDomain:        getVal('fb-authdomain').trim(),
-    databaseURL:       getVal('fb-dburl').trim(),
-    projectId:         getVal('fb-projectid').trim(),
-    appId:             getVal('fb-appid').trim(),
+    apiKey:      getVal('fb-apikey').trim(),
+    authDomain:  getVal('fb-authdomain').trim(),
+    databaseURL: getVal('fb-dburl').trim(),
+    projectId:   getVal('fb-projectid').trim(),
+    appId:       getVal('fb-appid').trim(),
   };
-  if (!cfg.apiKey || !cfg.databaseURL) { toast('APIキーとDatabase URLは必須です', 'ng'); return; }
+
+  if (!cfg.apiKey || !cfg.databaseURL) {
+    toast('APIキーとDatabase URLは必須です', 'ng');
+    return;
+  }
+
   localStorage.setItem('fb_config', JSON.stringify(cfg));
-  const ok = connectFirebase(cfg);
-  g('fb-status').textContent = ok ? '✅ 保存・接続しました' : '❌ 接続に失敗しました';
-  if (ok) toast('Firebase に接続しました 🔥', 'ok');
+  toast('Firebase設定を保存しました', 'ok');
+
+  // ★ ページをリロードして Auth → DB の順番で再接続
+  location.reload();
 };
+
+window.addEventListener('DOMContentLoaded', () => {
+  const cfg = loadFbConfig();
+  if (!cfg) {
+    console.log("Firebase設定なし");
+    return;
+  }
+
+  // Firebase 初期化
+  const app = initializeApp(cfg);
+
+  // Auth 初期化
+  const auth = getAuth(app);
+
+  signInAnonymously(auth)
+    .catch(err => console.error("匿名ログイン失敗:", err));
+
+  onAuthStateChanged(auth, user => {
+    if (!user) return;
+
+    console.log("ログイン成功 UID:", user.uid);
+
+    // ★ UID を画面に表示
+    document.body.insertAdjacentHTML('beforeend',
+      `<div style="padding:10px; background:#eef; margin:10px 0;">
+         UID: ${user.uid}
+       </div>`);
+
+    // ★ ログイン後に DB 接続
+    connectFirebase(cfg);
+  });
+});
 
 /* ══════════════════════════════════════
    アプリ状態（インメモリキャッシュ）
