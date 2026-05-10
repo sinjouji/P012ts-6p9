@@ -10,28 +10,6 @@ import { getAuth, signInWithEmailAndPassword, onAuthStateChanged }
 
 const auth = getAuth(app);
 
-// ログインボタン
-document.getElementById("login-btn").addEventListener("click", () => {
-  const email = document.getElementById("email").value;
-  const pass  = document.getElementById("password").value;
-
-  signInWithEmailAndPassword(auth, email, pass)
-    .catch(err => alert("ログイン失敗: " + err.message));
-});
-
-// 自動ログイン（ここが超重要）
-onAuthStateChanged(auth, user => {
-  if (user) {
-    console.log("ログイン成功 UID:", user.uid);
-
-    // ログイン画面を隠す
-    document.getElementById("login-box").style.display = "none";
-
-    // ★ここから DB の処理を開始する
-    startApp(user.uid);
-  }
-});
-//ここまで追加
 
 
 /* ══════════════════════════════════════
@@ -98,6 +76,31 @@ function connectFirebase(cfg) {
     return false;
   }
 }
+
+
+// ログインボタン
+document.getElementById("login-btn").addEventListener("click", () => {
+  const email = document.getElementById("email").value;
+  const pass  = document.getElementById("password").value;
+
+  signInWithEmailAndPassword(auth, email, pass)
+    .catch(err => alert("ログイン失敗: " + err.message));
+});
+
+// 自動ログイン（ここが超重要）
+onAuthStateChanged(auth, user => {
+  if (user) {
+    console.log("ログイン成功 UID:", user.uid);
+
+    // ログイン画面を隠す
+    document.getElementById("login-box").style.display = "none";
+
+    // ★ここから DB の処理を開始する
+    startApp(user.uid);
+  }
+});
+//ここまで追加
+
 
 window.saveFbConfig = function() {
  // ▼ Firebase設定を入力欄から読み込む
