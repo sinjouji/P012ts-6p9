@@ -5,12 +5,6 @@
 import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, get, set, update, remove, onValue }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged }
-  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-
-const auth = getAuth(app);
-
-
 
 /* ══════════════════════════════════════
    ユーティリティ（最初に定義）
@@ -77,59 +71,20 @@ function connectFirebase(cfg) {
   }
 }
 
-
 window.saveFbConfig = function() {
   const cfg = {
-    apiKey:      getVal('fb-apikey').trim(),
-    authDomain:  getVal('fb-authdomain').trim(),
-    databaseURL: getVal('fb-dburl').trim(),
-    projectId:   getVal('fb-projectid').trim(),
-    appId:       getVal('fb-appid').trim(),
+    apiKey:            getVal('fb-apikey').trim(),
+    authDomain:        getVal('fb-authdomain').trim(),
+    databaseURL:       getVal('fb-dburl').trim(),
+    projectId:         getVal('fb-projectid').trim(),
+    appId:             getVal('fb-appid').trim(),
   };
-
-  if (!cfg.apiKey || !cfg.databaseURL) {
-    toast('APIキーとDatabase URLは必須です', 'ng');
-    return;
-  }
-
+  if (!cfg.apiKey || !cfg.databaseURL) { toast('APIキーとDatabase URLは必須です', 'ng'); return; }
   localStorage.setItem('fb_config', JSON.stringify(cfg));
-  toast('Firebase設定を保存しました', 'ok');
-
-  // ★ ページをリロードして Auth → DB の順番で再接続
-  location.reload();
+  const ok = connectFirebase(cfg);
+  g('fb-status').textContent = ok ? '✅ 保存・接続しました' : '❌ 接続に失敗しました';
+  if (ok) toast('Firebase に接続しました 🔥', 'ok');
 };
-
-window.addEventListener('DOMContentLoaded', () => {
-  const cfg = loadFbConfig();
-  if (!cfg) {
-    console.log("Firebase設定なし");
-    return;
-  }
-
-  // Firebase 初期化
-  const app = initializeApp(cfg);
-
-  // Auth 初期化
-  const auth = getAuth(app);
-
-  signInAnonymously(auth)
-    .catch(err => console.error("匿名ログイン失敗:", err));
-
-  onAuthStateChanged(auth, user => {
-    if (!user) return;
-
-    console.log("ログイン成功 UID:", user.uid);
-
-    // ★ UID を画面に表示
-    document.body.insertAdjacentHTML('beforeend',
-      `<div style="padding:10px; background:#eef; margin:10px 0;">
-         UID: ${user.uid}
-       </div>`);
-
-    // ★ ログイン後に DB 接続
-    connectFirebase(cfg);
-  });
-});
 
 /* ══════════════════════════════════════
    アプリ状態（インメモリキャッシュ）
@@ -957,74 +912,79 @@ function toTags() {
    デイリー：体温・タグ・メモ
 ══════════════════════════════════════ */
 function renderDailyHealth() {
+  // dailyUserグローバルではなく、バッジテキストからも確認（同期ズレ防止）
   const ukey = dailyUser === 1 ? 'son' : 'daughter';
   const col  = dailyUser === 1 ? 'visible_son' : 'visible_daughter';
-  const day  = getDayData(ukey, dailyDate);
-
-  // 体温
+  // 入力中のフォームを上書きしない（フォーカス中は skip）
   const ti = g('temp-input');
-  if (ti) ti.value = day.temperature || '';
+  const ma = g('memo-area');
+  const day = getDayData(ukey, dailyDate);
+
+  // 体温（フォーカス中は上書きしない）
+  if (ti && document.activeElement !== ti) ti.value = day.temperature ?? '';
 
   // タグ
   const tw = g('daily-tags');
   if (tw) {
     tw.innerHTML = '';
-    const tags    = toTags().filter(t => t[col]);
-    const selIds  = Array.isArray(day.tag_ids) ? day.tag_ids : Object.values(day.tag_ids || []);
+    const tags   = toTags().filter(t => t[col]);
+    const selIds = Array.isArray(day.tag_ids) ? day.tag_ids : Object.values(day.tag_ids || []);
     tags.forEach(tag => {
       const active = selIds.includes(String(tag.id));
       const chip   = document.createElement('span');
       chip.className = 'tag-chip ' + (active ? 'active' : 'inactive');
-      chip.style.background   = active ? tag.color : 'transparent';
-      chip.style.borderColor  = tag.color;
-      chip.style.color        = active ? '#fff' : tag.color;
-      chip.textContent        = tag.name;
+      chip.style.background  = active ? tag.color : 'transparent';
+      chip.style.borderColor = tag.color;
+      chip.style.color       = active ? '#fff' : tag.color;
+      chip.textContent       = tag.name;
       chip.addEventListener('click', () => toggleDailyTag(String(tag.id)));
       tw.appendChild(chip);
     });
     if (!tags.length) tw.innerHTML = '<span class="text-lt text-xs">設定でタグを追加してください</span>';
   }
 
-  // メモ
-  const ma = g('memo-area');
-  if (ma) ma.value = day.memo || '';
+  // メモ（フォーカス中は上書きしない）
+  if (ma && document.activeElement !== ma) ma.value = day.memo || '';
 }
 
 async function toggleDailyTag(tagId) {
-  const ukey = dailyUser === 1 ? 'son' : 'daughter';
-  const day  = getDayData(ukey, dailyDate);
+  const uid  = dailyUser;        // 呼び出し時点でスナップショット
+  const date = dailyDate;
+  const ukey = uid === 1 ? 'son' : 'daughter';
+  const day  = getDayData(ukey, date);
   let ids    = Array.isArray(day.tag_ids) ? [...day.tag_ids]
              : Object.values(day.tag_ids || []);
   if (ids.includes(tagId)) ids = ids.filter(i => i !== tagId);
   else ids.push(tagId);
   day.tag_ids = ids;
   renderDailyHealth();
-  const base = `users/${ukey}/daily/${dailyDate}`;
-  dbUpdate(base, { tag_ids: ids.length ? ids : null })
+  dbUpdate(`users/${ukey}/daily/${date}`, { tag_ids: ids.length ? ids : null })
     .catch(e => console.error('tag save error:', e));
 }
 
 window.saveTemp = async function() {
-  const ukey = dailyUser === 1 ? 'son' : 'daughter';
-  const day  = getDayData(ukey, dailyDate);
+  const uid  = dailyUser;        // 呼び出し時点でスナップショット
+  const date = dailyDate;
+  const ukey = uid === 1 ? 'son' : 'daughter';
   const val  = parseFloat(g('temp-input')?.value || '');
   if (isNaN(val) || val < 35 || val > 42) { toast('体温は35〜42℃で入力してください','ng'); return; }
-  day.temperature = val;
+  getDayData(ukey, date).temperature = val;
   const saved = g('temp-saved');
   if (saved) { saved.style.opacity = '1'; setTimeout(() => saved.style.opacity = '0', 1800); }
-  const base = `users/${ukey}/daily/${dailyDate}`;
-  dbUpdate(base, { temperature: val }).catch(e => console.error('temp save error:', e));
+  dbUpdate(`users/${ukey}/daily/${date}`, { temperature: val })
+    .catch(e => console.error('temp save error:', e));
 };
 
 window.saveMemo = async function() {
-  const ukey = dailyUser === 1 ? 'son' : 'daughter';
-  const day  = getDayData(ukey, dailyDate);
+  const uid  = dailyUser;        // 呼び出し時点でスナップショット
+  const date = dailyDate;
+  const ukey = uid === 1 ? 'son' : 'daughter';
   const val  = g('memo-area')?.value || '';
-  day.memo   = val;
+  getDayData(ukey, date).memo = val;
   const saved = g('memo-saved');
   if (saved) { saved.style.opacity = '1'; setTimeout(() => saved.style.opacity = '0', 1800); }
-  const base = `users/${ukey}/daily/${dailyDate}`;
-  dbUpdate(base, { memo: val }).catch(e => console.error('memo save error:', e));
+  dbUpdate(`users/${ukey}/daily/${date}`, { memo: val })
+    .catch(e => console.error('memo save error:', e));
 };
 
 /* ══════════════════════════════════════
@@ -1061,44 +1021,58 @@ function renderSummaryMonthLog(uid) {
 function renderTempGraph(uid) {
   const ukey  = uid === 1 ? 'son' : 'daughter';
   const daily = appData.users[ukey]?.daily || {};
-  const monthly = {};
-  Object.entries(daily).forEach(([d, rec]) => {
-    if (!rec.temperature) return;
-    const ym = d.slice(0, 7);
-    if (!monthly[ym]) monthly[ym] = [];
-    monthly[ym].push(rec.temperature);
-  });
-  const labels = Object.keys(monthly).sort();
-  const avgs   = labels.map(ym => {
-    const arr = monthly[ym];
-    return Math.round(arr.reduce((s, v) => s + v, 0) / arr.length * 10) / 10;
-  });
+  // 日別データ（体温がある日のみ）
+  const entries = Object.entries(daily)
+    .filter(([, rec]) => rec.temperature)
+    .sort(([a],[b]) => a > b ? 1 : -1);
+
   if (trCharts['chart-temp']) { trCharts['chart-temp'].destroy(); delete trCharts['chart-temp']; }
   const ctx = g('chart-temp');
   if (!ctx) return;
-  if (!labels.length) { ctx.parentElement.innerHTML += '<div class="empty">体温データがありません</div>'; return; }
+
+  if (!entries.length) {
+    // すでに追加済みのemptyメッセージを避けるため親をチェック
+    if (!ctx.parentElement.querySelector('.empty')) {
+      ctx.style.display = 'none';
+      const msg = document.createElement('div');
+      msg.className = 'empty'; msg.textContent = '体温データがありません';
+      ctx.parentElement.appendChild(msg);
+    }
+    return;
+  }
+  ctx.style.display = '';
+
+  const labels = entries.map(([d]) => d.slice(5).replace('-','/'));
+  const temps  = entries.map(([, rec]) => rec.temperature);
+  const minT   = Math.floor(Math.min(...temps) * 2) / 2 - 0.5;
+  const maxT   = Math.ceil( Math.max(...temps) * 2) / 2 + 0.5;
+
   trCharts['chart-temp'] = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [{
-        label: '体温月平均(℃)',
-        data: avgs,
+        label: '体温(℃)',
+        data: temps,
         borderColor: '#e74c3c',
         backgroundColor: 'rgba(231,76,60,.1)',
         borderWidth: 2,
-        pointRadius: 4,
+        pointRadius: 5,
+        pointHoverRadius: 7,
         tension: 0.3,
         fill: true,
       }]
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.parsed.y + '℃' } }
+      },
       scales: {
-        x: { grid: { display: false } },
-        y: { min: 35.5, max: 40, grid: { color: '#eee' },
-             ticks: { callback: v => v + '℃' } }
+        x: { grid: { display: false },
+             ticks: { maxTicksLimit: 10, maxRotation: 45 } },
+        y: { min: minT, max: maxT, grid: { color: '#eee' },
+             ticks: { callback: v => v + '℃', stepSize: 0.5 } }
       }
     }
   });
