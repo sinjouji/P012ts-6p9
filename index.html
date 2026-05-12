@@ -28,7 +28,7 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:16px;-webkit-text-size-adjust:100%}
-body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;padding-bottom:calc(16px + env(safe-area-inset-bottom,0))}
+body{touch-action: pan-x pan-y;font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;padding-bottom:calc(16px + env(safe-area-inset-bottom,0))}
 a{color:var(--primary);text-decoration:none}
 button{cursor:pointer;font-family:var(--font)}
 input,select,textarea{font-family:var(--font)}
@@ -354,19 +354,6 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
 }
 #app-screen{display:none}
 </style>
-   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" id="viewport">
-  <script>
-    function toggleZoom() {
-      const viewport = document.getElementById("viewport");
-      const content = viewport.getAttribute("content");
-
-      if (content.includes("user-scalable=no")) {
-        viewport.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes");
-      } else {
-        viewport.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no");
-      }
-    }
-  </script>
 </head>
 <body>
 
@@ -405,7 +392,6 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
   <a href="#trends"   data-view="trends">📉 推移</a>
   <a href="#settings" data-view="settings">⚙️ 設定</a>
   <a href="#search"   data-view="search">🔍 検索</a>
-  <button onclick="toggleZoom()">ズーム機能を切り替える</button>
 </nav>
 
 <!-- メインコンテンツ -->
