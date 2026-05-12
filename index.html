@@ -28,12 +28,17 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:16px;-webkit-text-size-adjust:100%}
-body{touch-action: pan-x pan-y;font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;padding-bottom:calc(16px + env(safe-area-inset-bottom,0))}
+body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;padding-bottom:calc(16px + env(safe-area-inset-bottom,0))}
 a{color:var(--primary);text-decoration:none}
 button{cursor:pointer;font-family:var(--font)}
 input,select,textarea{font-family:var(--font)}
 html, css{touch-action:none;}
-
+a, button, input {
+  touch-action: manipulation; /* ダブルタップズームを無効化 */
+}
+body {
+  touch-action: pan-x pan-y; /* スクロールは許可し、ズームを禁止 */
+}
 /* ══════════════════════════════════════
    ヘッダー（タイトルのみ）
 ══════════════════════════════════════ */
