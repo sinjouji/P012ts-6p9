@@ -354,6 +354,19 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
 }
 #app-screen{display:none}
 </style>
+   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" id="viewport">
+  <script>
+    function toggleZoom() {
+      const viewport = document.getElementById("viewport");
+      const content = viewport.getAttribute("content");
+
+      if (content.includes("user-scalable=no")) {
+        viewport.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes");
+      } else {
+        viewport.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no");
+      }
+    }
+  </script>
 </head>
 <body>
 
@@ -392,6 +405,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
   <a href="#trends"   data-view="trends">📉 推移</a>
   <a href="#settings" data-view="settings">⚙️ 設定</a>
   <a href="#search"   data-view="search">🔍 検索</a>
+  <button onclick="toggleZoom()">ズーム機能を切り替える</button>
 </nav>
 
 <!-- メインコンテンツ -->
