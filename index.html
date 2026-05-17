@@ -329,6 +329,13 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
 .month-log-tbl td{padding:6px 8px;border-bottom:1px solid var(--border-lt);vertical-align:middle}
 .month-log-tbl tr:last-child td{border-bottom:none}
 
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px}
+.cal-nav-label{font-size:.8rem;font-weight:700;color:var(--text-md);flex:1;text-align:center}
+.cal-nav-btn{padding:5px 10px;font-size:.85rem;border:1.5px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer;transition:all .15s;font-family:var(--font);font-weight:600;flex-shrink:0}
+.cal-nav-btn:hover{border-color:var(--primary);color:var(--primary)}
+/* ユーザーバッジをクリック可能に */
+.user-badge{cursor:pointer;transition:opacity .15s}
+.user-badge:hover{opacity:.8}
 /* ══ ログイン画面 ══ */
 #login-screen{
   position:fixed;inset:0;background:var(--primary);
@@ -445,12 +452,22 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
         <!-- 息子カレンダー -->
         <div class="toggle open">
           <div class="toggle-hd"><span class="toggle-title">👦 息子 週カレンダー</span><span class="toggle-icon">▼</span></div>
-          <div class="toggle-body"><div class="toggle-inner"><div class="week-cal" id="cal-son"></div></div></div>
+          <div class="toggle-body"><div class="toggle-inner">
+            <div class="cal-nav">
+              <button class="cal-nav-btn" onclick="calPrevWeek()">◀</button>
+              <span class="cal-nav-label" id="cal-week-label">今週</span>
+              <button class="cal-nav-btn" id="cal-today-btn" onclick="calThisWeek()" style="opacity:.4">今週</button>
+              <button class="cal-nav-btn" onclick="calNextWeek()">▶</button>
+            </div>
+            <div class="week-cal" id="cal-son"></div>
+          </div></div>
         </div>
         <!-- 娘カレンダー -->
         <div class="toggle open">
           <div class="toggle-hd"><span class="toggle-title">👧 娘 週カレンダー</span><span class="toggle-icon">▼</span></div>
-          <div class="toggle-body"><div class="toggle-inner"><div class="week-cal" id="cal-daughter"></div></div></div>
+          <div class="toggle-body"><div class="toggle-inner">
+            <div class="week-cal" id="cal-daughter"></div>
+          </div></div>
         </div>
         <!-- レートメモ -->
         <div class="toggle">

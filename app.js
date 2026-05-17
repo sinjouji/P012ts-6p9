@@ -254,6 +254,40 @@ window.initFirebaseData = function() {
 ══════════════════════════════════════ */
 let currentView = 'home';
 
+/* ══ ホームカレンダー週ナビ ══ */
+let calWeekOffset = 0;  // 0=今週, -1=先週, +1=来週
+
+window.calPrevWeek = function() {
+  calWeekOffset--;
+  renderWeekCal(1, 'cal-son',      calWeekOffset);
+  renderWeekCal(2, 'cal-daughter', calWeekOffset);
+  updateCalWeekLabel();
+};
+window.calNextWeek = function() {
+  calWeekOffset++;
+  renderWeekCal(1, 'cal-son',      calWeekOffset);
+  renderWeekCal(2, 'cal-daughter', calWeekOffset);
+  updateCalWeekLabel();
+};
+window.calThisWeek = function() {
+  calWeekOffset = 0;
+  renderWeekCal(1, 'cal-son',      calWeekOffset);
+  renderWeekCal(2, 'cal-daughter', calWeekOffset);
+  updateCalWeekLabel();
+};
+
+function updateCalWeekLabel() {
+  const today  = todayStr();
+  const dow0   = new Date(today + 'T00:00:00').getDay();
+  const sun    = offsetDate(today, -dow0 + calWeekOffset * 7);
+  const sat    = offsetDate(sun, 6);
+  const label  = sun.slice(5).replace('-','/') + ' 〜 ' + sat.slice(5).replace('-','/');
+  const el     = g('cal-week-label');
+  if (el) el.textContent = label;
+  const todayBtn = g('cal-today-btn');
+  if (todayBtn) todayBtn.style.opacity = calWeekOffset === 0 ? '0.4' : '1';
+}
+
 function goView(view) {
   currentView = view;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -329,19 +363,22 @@ function renderHome() {
     setText(`${pfx}-pts`,  tp + 'P');
     setText(`${pfx}-yen`,  (ep * ypp).toLocaleString() + '円');
   });
-  renderWeekCal(1, 'cal-son');
-  renderWeekCal(2, 'cal-daughter');
+  renderWeekCal(1, 'cal-son',      calWeekOffset);
+  renderWeekCal(2, 'cal-daughter', calWeekOffset);
   g('past-date').value = todayStr();
+  updateCalWeekLabel();
 }
 
-function renderWeekCal(uid, containerId) {
+function renderWeekCal(uid, containerId, weekOffset) {
   const cal = g(containerId);
   if (!cal) return;
   cal.innerHTML = '';
   const today = todayStr();
   const DOW   = ['日','月','火','水','木','金','土'];
   const dow0  = new Date(today + 'T00:00:00').getDay();
-  const sun   = offsetDate(today, -dow0);
+  // weekOffset（週単位）分だけずらした週の日曜を基準にする
+  const baseSun = offsetDate(today, -dow0 + (weekOffset || 0) * 7);
+  const sun   = baseSun;
   const ukey  = uid === 1 ? 'son' : 'daughter';
   const daily = appData.users[ukey]?.daily || {};
   const items = toArr(appData.items);
@@ -409,7 +446,13 @@ function getDayData(ukey, date) {
 
 function renderDaily() {
   const ukey = dailyUser === 1 ? 'son' : 'daughter';
-  setText('daily-user-badge', dailyUser === 1 ? '👦 息子' : '👧 娘');
+  // バッジをタップで相手のユーザーのデイリーに切替
+  const badge = g('daily-user-badge');
+  if (badge) {
+    badge.textContent = dailyUser === 1 ? '👦 息子 ⇄' : '👧 娘 ⇄';
+    badge.style.cursor = 'pointer';
+    badge.onclick = () => goDaily(dailyUser === 1 ? 2 : 1, dailyDate);
+  }
   setText('daily-date-badge', dailyDate.replace(/-/g,'/') + '（' + dowJa(dailyDate) + '）');
 
   const day   = getDayData();
