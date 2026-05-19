@@ -254,6 +254,51 @@ window.initFirebaseData = function() {
 ══════════════════════════════════════ */
 let currentView = 'home';
 
+/* ══ レート・換算メモ（動的生成）══ */
+function renderRateMemo() {
+  const tbl   = g('rate-memo-table');
+  if (!tbl) return;
+  const s     = appData.settings || {};
+  const pph   = s.points_per_hour || 50;
+  const ypp   = s.yen_per_point   || 4;
+  const items = toArr(appData.items).filter(i => i.is_positive || i.base_time < 0);
+
+  // サマリーページの換算注記も更新
+  setText('sum-pph', pph);
+  setText('sum-ypp', ypp);
+
+  // 項目ごとの説明行を生成
+  const rows = [];
+  items.forEach(item => {
+    const bp = item.base_point|0, bt = item.base_time|0;
+    const parts = [];
+    if (bp > 0) parts.push(`+${bp}P`);
+    if (bp < 0) parts.push(`${bp}P`);
+    if (bt > 0) parts.push(`+${fmtMin(bt)}`);
+    if (bt < 0) parts.push(`${fmtMin(bt)}`);
+    const val = parts.join('・');
+
+    const limits = [];
+    if (item.daily_limit)  limits.push('1日1回');
+    if (item.weekly_limit) limits.push('週1回');
+    if (item.max_per_day != null) limits.push(`1日${item.max_per_day}回まで`);
+    if (item.max_time_per_day != null && bt > 0) limits.push(`時間${item.max_time_per_day}回まで`);
+    if (item.max_point_per_day != null && bp > 0) limits.push(`P${item.max_point_per_day}回まで`);
+    const limitStr = limits.length ? `（${limits.join('・')}）` : '';
+
+    rows.push(`<tr><td>${item.name}</td><td>${val}${limitStr}</td></tr>`);
+  });
+
+  // 交換レート行
+  rows.push(`<tr><td colspan="2" style="color:var(--text-lt);font-size:.75rem;padding-top:6px">── 交換レート ──</td></tr>`);
+  rows.push(`<tr><td>${pph}P</td><td>= 1時間</td></tr>`);
+  rows.push(`<tr><td>1P</td><td>= ${ypp}円</td></tr>`);
+  rows.push(`<tr><td colspan="2" style="color:var(--text-lt);font-size:.75rem;padding-top:6px">── 明日の服 ──</td></tr>`);
+  rows.push(`<tr><td>累計7日</td><td>ボーナス +10P</td></tr>`);
+
+  tbl.innerHTML = rows.join('');
+}
+
 /* ══ ホームカレンダー週ナビ ══ */
 let calWeekOffset = 0;  // 0=今週, -1=先週, +1=来週
 
@@ -367,6 +412,7 @@ function renderHome() {
   renderWeekCal(2, 'cal-daughter', calWeekOffset);
   g('past-date').value = todayStr();
   updateCalWeekLabel();
+  renderRateMemo();
 }
 
 function renderWeekCal(uid, containerId, weekOffset) {
@@ -886,6 +932,7 @@ window.saveSettings = async function() {
     yen_per_point:   parseInt(g('s-ypp').value)||4,
   });
   toast('設定を保存しました ✓','ok');
+  renderRateMemo();  // レートメモに即反映
 };
 
 function renderSettingsItems() {

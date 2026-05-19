@@ -473,24 +473,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
         <div class="toggle">
           <div class="toggle-hd"><span class="toggle-title">💡 レート・換算メモ</span><span class="toggle-icon">▼</span></div>
           <div class="toggle-body"><div class="toggle-inner">
-            <table class="rate-tbl">
-              <tr><td>スマイルゼミ</td><td>+1P・+30分（時間3回まで）</td></tr>
-              <tr><td>宿題</td><td>+1P（1日1回）</td></tr>
-              <tr><td>ゴミ捨て</td><td>+1P（1日1回）</td></tr>
-              <tr><td>明日の服</td><td>+1P（1日1回）</td></tr>
-              <tr><td>連絡帳きれい</td><td>+5P（1日1回）</td></tr>
-              <tr><td>上ばき洗い</td><td>+5P（1日1回）</td></tr>
-              <tr><td>玄関整頓</td><td>+5P（1日1回）</td></tr>
-              <tr><td>食事前片付け</td><td>+10P（1日3回まで）</td></tr>
-              <tr><td>服の引き出し整頓</td><td>+20P（週1回）</td></tr>
-              <tr><td>ゲーム30分</td><td>−30分</td></tr>
-              <tr><td>ゲーム60分</td><td>−60分</td></tr>
-              <tr><td colspan="2" style="color:var(--text-lt);font-size:.75rem;padding-top:6px">── 交換レート ──</td></tr>
-              <tr><td>50P</td><td>= 1時間</td></tr>
-              <tr><td>1P</td><td>= 4円</td></tr>
-              <tr><td colspan="2" style="color:var(--text-lt);font-size:.75rem;padding-top:6px">── 明日の服 ──</td></tr>
-              <tr><td>7日連続</td><td>ボーナス +10P</td></tr>
-            </table>
+            <table class="rate-tbl" id="rate-memo-table"></table>
           </div></div>
         </div>
       </div>
@@ -570,7 +553,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
           <div class="stat-box s-time"><div class="v" id="sum-time">－</div><div class="l">残り時間</div></div>
           <div class="stat-box s-yen"> <div class="v" id="sum-yen">－</div><div class="l">金額換算</div></div>
         </div>
-        <div style="font-size:.72rem;color:var(--text-lt);margin-top:6px">※時間は1時間ごとに50Pに換算。端数は時間のまま残す。1P=4円</div>
+        <div style="font-size:.72rem;color:var(--text-lt);margin-top:6px">※時間は1時間ごとに<span id="sum-pph">50</span>Pに換算。端数は時間のまま残す。1P=<span id="sum-ypp">4</span>円</div>
       </div></div>
     </div>
     <div class="toggle open">
