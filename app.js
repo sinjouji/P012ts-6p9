@@ -22,6 +22,14 @@ const fmtMin = m => { m=parseInt(m||0); if(!m)return'0分'; const s=m<0?'-':'',a
 const todayStr = () => new Date().toLocaleDateString('sv-SE');
 const dowJa    = d  => ['日','月','火','水','木','金','土'][new Date(d+'T00:00:00').getDay()];
 const offsetDate = (d,n) => { const dt=new Date(d+'T00:00:00'); dt.setDate(dt.getDate()+n); return dt.toLocaleDateString('sv-SE'); };
+// 日本時間（JST）でタイムスタンプ生成
+const nowJST = () => {
+  const d = new Date();
+  // UTC+9 に変換
+  const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  // "YYYY-MM-DDTHH:mm:ss" 形式（+09:00 なしのローカル表記）
+  return jst.toISOString().replace('Z', '').slice(0, 19);
+};
 // Firebaseは配列をオブジェクトに変換する→配列に戻すヘルパー
 const toArr = v => Array.isArray(v) ? v : Object.values(v || {});
 
@@ -610,7 +618,7 @@ async function pressItem(itemId) {
     toast('今日の上限に達しています','ng'); return;
   }
 
-  const ts    = new Date().toISOString();
+  const ts    = nowJST();
   const logId = 'pl_' + Date.now();
   const newSt = {
     press_count: (st.press_count||0) + 1,
@@ -661,7 +669,7 @@ async function checkClothesBonus(ukey, addPts) {
   if (newCount >= 7) {
     // 7日累計達成 → ボーナス付与・リセット
     const day     = getDayData();
-    const ts      = new Date().toISOString();
+    const ts      = nowJST();
     const logId   = 'pl_bonus_' + Date.now();
     const basePath= `users/${ukey}/daily/${dailyDate}`;
     await dbUpdate(basePath, {
@@ -718,7 +726,7 @@ window.submitManual = async function() {
   const ukey  = dailyUser === 1 ? 'son' : 'daughter';
   const day   = getDayData(ukey, dailyDate);
   if (!day.manual_logs) day.manual_logs = {};
-  const ts    = new Date().toISOString();
+  const ts    = nowJST();
   const logId = 'ml_' + Date.now();
 
   // 1. ローカル先行更新
@@ -834,7 +842,7 @@ window.submitExchange = async function() {
 
   const today = todayStr();
   const day   = daily[today] || { total_points:0 };
-  const ts    = new Date().toISOString();
+  const ts    = nowJST();
   const eid   = 'ex_' + Date.now();
 
   await dbUpdate(`users/${ukey}/daily/${today}`, { total_points:(day.total_points||0)-pts });
@@ -1138,7 +1146,7 @@ function renderSummaryMonthLog(uid) {
   const tags  = toTags();
   const tbody = g('month-log-tbody');
   if (!tbody) return;
-  const month = (new Date()).toISOString().slice(0, 7);
+  const month = nowJST().slice(0, 7);
   const rows  = Object.entries(daily)
     .filter(([d]) => d.startsWith(month))
     .sort(([a],[b]) => b > a ? 1 : -1);
