@@ -1301,8 +1301,13 @@ function runSearch() {
     const memo = rec.memo ? rec.memo.slice(0, 40) + (rec.memo.length > 40 ? '…' : '') : '';
     const item = document.createElement('div');
     item.className = 'search-item';
-    item.innerHTML = `<div><span class="si-date">${d}</span><span class="si-temp">${temp}</span></div>
-      <div class="tags-wrap" style="margin:4px 0">${tagHtml||''}</div>
+    // 1段目：日付・体温・タグを横並び（折り返しあり）
+    // 2段目：メモ
+    item.innerHTML = `<div class="si-row1">
+        <span class="si-date">${d}</span>
+        ${temp ? `<span class="si-temp">${temp}</span>` : ''}
+        ${tagHtml}
+      </div>
       ${memo ? `<div class="si-memo">${memo}</div>` : ''}`;
     item.addEventListener('click', () => { goDaily(searchUser, d); });
     result.appendChild(item);
