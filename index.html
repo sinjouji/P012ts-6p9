@@ -342,6 +342,31 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
 /* ユーザーバッジをクリック可能に */
 .user-badge{cursor:pointer;transition:opacity .15s}
 .user-badge:hover{opacity:.8}
+
+/* ══ 換算計算機 ══ */
+.calc-section{background:var(--surface);border-radius:var(--r);padding:16px;margin-bottom:12px;border:1px solid var(--border-lt);box-shadow:var(--shadow)}
+.calc-section h3{font-size:.88rem;font-weight:700;color:var(--primary);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.calc-input-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.calc-input{width:80px;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:1rem;font-weight:700;text-align:center;background:var(--surface);color:var(--text);transition:border-color .15s;font-family:var(--font)}
+.calc-input:focus{outline:none;border-color:var(--primary)}
+.calc-input.wide{width:110px}
+.calc-unit{font-size:.85rem;color:var(--text-lt);font-weight:600;white-space:nowrap}
+.calc-btn{padding:8px 16px;border:none;border-radius:var(--r-sm);background:var(--primary);color:#fff;font-size:.88rem;font-weight:700;cursor:pointer;font-family:var(--font);transition:background .15s}
+.calc-btn:hover{background:var(--pri-lt)}
+.calc-btn.reset{background:transparent;border:1.5px solid var(--border);color:var(--text-lt)}
+.calc-btn.reset:hover{border-color:var(--neg);color:var(--neg)}
+.calc-result{background:var(--surface2);border-radius:var(--r-sm);padding:10px 14px;margin-top:6px;display:flex;flex-direction:column;gap:6px;border:1px solid var(--border-lt);min-height:44px}
+.calc-result-row{display:flex;justify-content:space-between;align-items:center;font-size:.88rem}
+.calc-result-label{color:var(--text-lt);font-size:.78rem}
+.calc-result-val{font-size:1.1rem;font-weight:700}
+.calc-result-val.pts{color:var(--pts)}
+.calc-result-val.time{color:var(--time)}
+.calc-result-val.yen{color:var(--primary)}
+.calc-saved-badge{font-size:.72rem;background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:1px 8px;font-weight:700}
+.calc-saved-list{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.calc-saved-item{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border:1px solid var(--border-lt);border-radius:var(--r-sm);font-size:.8rem}
+.calc-saved-item .cs-label{color:var(--text-lt);font-size:.72rem}
+.calc-saved-item .cs-val{font-weight:700}
 /* ══ ログイン画面 ══ */
 #login-screen{
   position:fixed;inset:0;background:var(--primary);
@@ -404,6 +429,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
   <a href="#trends"   data-view="trends">📉 推移</a>
   <a href="#settings" data-view="settings">⚙️ 設定</a>
   <a href="#search"   data-view="search">🔍 検索</a>
+  <a href="#calc"    data-view="calc">🧮 計算</a>
 </nav>
 
 <!-- メインコンテンツ -->
@@ -699,6 +725,62 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
     <div style="font-size:.78rem;font-weight:600;color:var(--text-md);margin-bottom:6px">タグで絞り込み</div>
     <div class="tags-wrap" id="search-tags" style="margin-bottom:12px"></div>
     <div class="search-result" id="search-result"></div>
+  </div>
+  <!-- ══ CALC ══ -->
+  <div class="view" id="view-calc">
+
+    <!-- 時間換算 -->
+    <div class="calc-section">
+      <h3>⏱ 時間 換算</h3>
+      <div class="calc-input-row">
+        <input type="number" class="calc-input" id="c-h"   min="0" placeholder="0" inputmode="numeric">
+        <span class="calc-unit">時間</span>
+        <input type="number" class="calc-input" id="c-m"   min="0" placeholder="0" inputmode="numeric">
+        <span class="calc-unit">分</span>
+        <button class="calc-btn" onclick="calcTime()">換算</button>
+        <button class="calc-btn reset" onclick="resetCalc('time')">リセット</button>
+      </div>
+      <div class="calc-result" id="r-time">
+        <span style="color:var(--text-lt);font-size:.78rem">時間または分を入力してください</span>
+      </div>
+      <div class="calc-saved-list" id="saved-time"></div>
+    </div>
+
+    <!-- ポイント換算 -->
+    <div class="calc-section">
+      <h3>⭐ ポイント 換算</h3>
+      <div class="calc-input-row">
+        <input type="number" class="calc-input wide" id="c-pts" min="0" placeholder="0" inputmode="numeric">
+        <span class="calc-unit">P</span>
+        <button class="calc-btn" onclick="calcPoints()">換算</button>
+        <button class="calc-btn reset" onclick="resetCalc('pts')">リセット</button>
+      </div>
+      <div class="calc-result" id="r-pts">
+        <span style="color:var(--text-lt);font-size:.78rem">ポイント数を入力してください</span>
+      </div>
+      <div class="calc-saved-list" id="saved-pts"></div>
+    </div>
+
+    <!-- 金額換算 -->
+    <div class="calc-section">
+      <h3>💴 金額 換算</h3>
+      <div class="calc-input-row">
+        <input type="number" class="calc-input wide" id="c-yen" min="0" placeholder="0" inputmode="numeric">
+        <span class="calc-unit">円</span>
+        <button class="calc-btn" onclick="calcYen()">換算</button>
+        <button class="calc-btn reset" onclick="resetCalc('yen')">リセット</button>
+      </div>
+      <div class="calc-result" id="r-yen">
+        <span style="color:var(--text-lt);font-size:.78rem">金額を入力してください</span>
+      </div>
+      <div class="calc-saved-list" id="saved-yen"></div>
+    </div>
+
+    <!-- レート表示 -->
+    <div style="text-align:center;font-size:.75rem;color:var(--text-lt);padding:4px 0 8px">
+      現在のレート：<span id="calc-rate-label">－</span>
+    </div>
+
   </div>
 </div><!-- /page -->
 

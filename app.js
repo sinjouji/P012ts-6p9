@@ -366,6 +366,7 @@ function renderView(view) {
   if (view === 'trends')   renderTrends();
   if (view === 'settings') renderSettingsView();
   if (view === 'search')   renderSearch();
+  if (view === 'calc')     renderCalcRateLabel();
 }
 
 // nav リンク
@@ -1440,6 +1441,169 @@ window.closeModal = id => g(id)?.classList.remove('open');
    起動（type="module"はDOM解析後に実行されるため
    DOMContentLoadedは使わず直接実行）
 ══════════════════════════════════════ */
+
+/* ══════════════════════════════════════
+   換算計算機
+══════════════════════════════════════ */
+
+// 保存リスト（ページ内メモリ）
+const calcSaved = { time: [], pts: [], yen: [] };
+
+function getCalcRates() {
+  const s = appData.settings || {};
+  return {
+    pph: parseInt(s.points_per_hour || 50),  // ポイント/時間
+    ypp: parseInt(s.yen_per_point   ||  4),  // 円/ポイント
+  };
+}
+
+function renderCalcRateLabel() {
+  const { pph, ypp } = getCalcRates();
+  const el = g('calc-rate-label');
+  if (el) el.textContent = `${pph}P = 1時間 ／ 1P = ${ypp}円`;
+}
+
+/* ── 時間換算 ── */
+window.calcTime = function() {
+  const h = parseInt(g('c-h')?.value || '0');
+  const m = parseInt(g('c-m')?.value || '0');
+  if (isNaN(h) && isNaN(m)) return;
+  const { pph, ypp } = getCalcRates();
+
+  const totalMin = (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+  if (totalMin === 0) { toast('時間または分を入力してください','ng'); return; }
+
+  const hh   = Math.floor(totalMin / 60);
+  const mm   = totalMin % 60;
+  const pts  = Math.round(totalMin / 60 * pph);  // 分→ポイント（比例換算）
+  const yen  = pts * ypp;
+
+  const rEl = g('r-time');
+  rEl.innerHTML = `
+    <div class="calc-result-row">
+      <span class="calc-result-label">合計（分）</span>
+      <span class="calc-result-val time">${totalMin} 分</span>
+    </div>
+    <div class="calc-result-row">
+      <span class="calc-result-label">時間表記</span>
+      <span class="calc-result-val time">${hh > 0 ? hh+'時間' : ''}${mm > 0 ? mm+'分' : (hh===0?'0分':'')}</span>
+    </div>
+    <div class="calc-result-row">
+      <span class="calc-result-label">ポイント換算</span>
+      <span class="calc-result-val pts">${pts} P</span>
+    </div>
+    <div class="calc-result-row">
+      <span class="calc-result-label">金額換算</span>
+      <span class="calc-result-val yen">${yen.toLocaleString()} 円</span>
+    </div>
+    <div style="text-align:right;margin-top:4px">
+      <button class="calc-btn" style="font-size:.75rem;padding:5px 12px" onclick="saveCalc('time','${hh}時間${mm}分 (${totalMin}分) = ${pts}P = ${yen.toLocaleString()}円')">保存</button>
+    </div>`;
+};
+
+/* ── ポイント換算 ── */
+window.calcPoints = function() {
+  const pts = parseInt(g('c-pts')?.value || '0');
+  if (!pts || pts <= 0) { toast('ポイント数を入力してください','ng'); return; }
+  const { pph, ypp } = getCalcRates();
+
+  const yen    = pts * ypp;
+  const minVal = Math.round(pts / pph * 60);  // ポイント→分
+  const hh     = Math.floor(minVal / 60);
+  const mm     = minVal % 60;
+
+  const rEl = g('r-pts');
+  rEl.innerHTML = `
+    <div class="calc-result-row">
+      <span class="calc-result-label">金額換算</span>
+      <span class="calc-result-val yen">${yen.toLocaleString()} 円</span>
+    </div>
+    <div class="calc-result-row">
+      <span class="calc-result-label">時間換算（分）</span>
+      <span class="calc-result-val time">${minVal} 分</span>
+    </div>
+    <div class="calc-result-row">
+      <span class="calc-result-label">時間表記</span>
+      <span class="calc-result-val time">${hh > 0 ? hh+'時間' : ''}${mm > 0 ? mm+'分' : (hh===0?'0分':'')}</span>
+    </div>
+    <div style="text-align:right;margin-top:4px">
+      <button class="calc-btn" style="font-size:.75rem;padding:5px 12px" onclick="saveCalc('pts','${pts}P = ${yen.toLocaleString()}円 = ${minVal}分')">保存</button>
+    </div>`;
+};
+
+/* ── 金額換算 ── */
+window.calcYen = function() {
+  const yen = parseInt(g('c-yen')?.value || '0');
+  if (!yen || yen <= 0) { toast('金額を入力してください','ng'); return; }
+  const { pph, ypp } = getCalcRates();
+
+  const pts    = Math.round(yen / ypp);
+  const minVal = Math.round(pts / pph * 60);
+  const hh     = Math.floor(minVal / 60);
+  const mm     = minVal % 60;
+
+  const rEl = g('r-yen');
+  rEl.innerHTML = `
+    <div class="calc-result-row">
+      <span class="calc-result-label">ポイント換算</span>
+      <span class="calc-result-val pts">${pts} P</span>
+    </div>
+    <div class="calc-result-row">
+      <span class="calc-result-label">時間換算（分）</span>
+      <span class="calc-result-val time">${minVal} 分</span>
+    </div>
+    <div class="calc-result-row">
+      <span class="calc-result-label">時間表記</span>
+      <span class="calc-result-val time">${hh > 0 ? hh+'時間' : ''}${mm > 0 ? mm+'分' : (hh===0?'0分':'')}</span>
+    </div>
+    <div style="text-align:right;margin-top:4px">
+      <button class="calc-btn" style="font-size:.75rem;padding:5px 12px" onclick="saveCalc('yen','${yen.toLocaleString()}円 = ${pts}P = ${minVal}分')">保存</button>
+    </div>`;
+};
+
+/* ── 保存 ── */
+window.saveCalc = function(type, label) {
+  calcSaved[type].unshift({ label, ts: nowJST().slice(11,16) });
+  if (calcSaved[type].length > 10) calcSaved[type].pop();
+  renderSavedList(type);
+  toast('保存しました ✓','ok');
+};
+
+function renderSavedList(type) {
+  const el = g('saved-' + type);
+  if (!el) return;
+  if (!calcSaved[type].length) { el.innerHTML = ''; return; }
+  el.innerHTML = calcSaved[type].map((item, i) => `
+    <div class="calc-saved-item">
+      <div>
+        <div class="cs-label">${item.ts}</div>
+        <div class="cs-val">${item.label}</div>
+      </div>
+      <button class="calc-btn reset" style="padding:3px 8px;font-size:.72rem" onclick="removeSaved('${type}',${i})">✕</button>
+    </div>`).join('');
+}
+
+window.removeSaved = function(type, idx) {
+  calcSaved[type].splice(idx, 1);
+  renderSavedList(type);
+};
+
+/* ── リセット ── */
+window.resetCalc = function(type) {
+  if (type === 'time') {
+    setVal('c-h',''); setVal('c-m','');
+    g('r-time').innerHTML = '<span style="color:var(--text-lt);font-size:.78rem">時間または分を入力してください</span>';
+    calcSaved.time = []; renderSavedList('time');
+  } else if (type === 'pts') {
+    setVal('c-pts','');
+    g('r-pts').innerHTML = '<span style="color:var(--text-lt);font-size:.78rem">ポイント数を入力してください</span>';
+    calcSaved.pts = []; renderSavedList('pts');
+  } else if (type === 'yen') {
+    setVal('c-yen','');
+    g('r-yen').innerHTML = '<span style="color:var(--text-lt);font-size:.78rem">金額を入力してください</span>';
+    calcSaved.yen = []; renderSavedList('yen');
+  }
+};
 
 // 日付ナビ
 const resetHealthKey = () => { const ht=g('health-toggle'); if(ht) delete ht.dataset.renderedKey; };
