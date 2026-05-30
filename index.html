@@ -122,6 +122,10 @@ input,select,textarea{font-family:var(--font)}
 .stat-box .v{font-size:1.4rem;font-weight:700;line-height:1.2}
 .stat-box .l{font-size:.7rem;color:var(--text-lt);margin-top:2px}
 .s-pts .v{color:var(--pts)}.s-time .v{color:var(--time)}.s-yen .v{color:var(--primary)}
+.s-money .v{color:#27ae60}
+.lm{color:#27ae60;font-weight:700}
+.s-money .v{color:#27ae60}
+.lm{color:#27ae60;font-weight:700}
 
 /* ══════════════════════════════════════
    今日の合計
@@ -468,6 +472,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
                   <div class="stat-box s-time"><div class="v" id="son-time">－</div><div class="l">残り時間</div></div>
                   <div class="stat-box s-pts"> <div class="v" id="son-pts">－</div><div class="l">残りポイント</div></div>
                   <div class="stat-box s-yen"> <div class="v" id="son-yen">－</div><div class="l">金額換算</div></div>
+                  <div class="stat-box s-money"><div class="v" id="son-money">－</div><div class="l">所持金</div></div>
                 </div>
               </div>
               <div>
@@ -476,6 +481,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
                   <div class="stat-box s-time"><div class="v" id="daughter-time">－</div><div class="l">残り時間</div></div>
                   <div class="stat-box s-pts"> <div class="v" id="daughter-pts">－</div><div class="l">残りポイント</div></div>
                   <div class="stat-box s-yen"> <div class="v" id="daughter-yen">－</div><div class="l">金額換算</div></div>
+                  <div class="stat-box s-money"><div class="v" id="daughter-money">－</div><div class="l">所持金</div></div>
                 </div>
               </div>
             </div>
@@ -526,10 +532,12 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
     <div class="day-strip">
       <div class="day-chip pts"><div class="big" id="today-pts">－</div><div>今日のポイント</div></div>
       <div class="day-chip time"><div class="big" id="today-time">－</div><div>今日の時間</div></div>
+      <div class="day-chip" style="background:#f0faf4;border-color:#a8d8b9;color:#27ae60"><div class="big" id="today-money">－</div><div>今日の所持金</div></div>
     </div>
     <div class="cum-row">
       <div class="cum-col"><div class="cl">累計ポイント</div><div class="cv cv-pts" id="cum-pts">－</div></div>
       <div class="cum-col"><div class="cl">累計時間</div><div class="cv cv-time" id="cum-time">－</div></div>
+      <div class="cum-col"><div class="cl">所持金合計</div><div class="cv" style="color:#27ae60" id="cum-money">－</div></div>
     </div>
     <div class="toggle open">
       <div class="toggle-hd"><span class="toggle-title">🎯 固定項目</span><span class="toggle-icon">▼</span></div>
@@ -581,9 +589,10 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
       <div class="toggle-hd"><span class="toggle-title">📈 累計ステータス</span><span class="toggle-icon">▼</span></div>
       <div class="toggle-body"><div class="toggle-inner">
         <div class="stat-row">
-          <div class="stat-box s-pts"> <div class="v" id="sum-pts">－</div><div class="l">残りポイント</div></div>
-          <div class="stat-box s-time"><div class="v" id="sum-time">－</div><div class="l">残り時間</div></div>
-          <div class="stat-box s-yen"> <div class="v" id="sum-yen">－</div><div class="l">金額換算</div></div>
+          <div class="stat-box s-pts">  <div class="v" id="sum-pts">－</div><div class="l">残りポイント</div></div>
+          <div class="stat-box s-time"> <div class="v" id="sum-time">－</div><div class="l">残り時間</div></div>
+          <div class="stat-box s-yen">  <div class="v" id="sum-yen">－</div><div class="l">金額換算</div></div>
+          <div class="stat-box s-money"><div class="v" id="sum-money">－</div><div class="l">所持金</div></div>
         </div>
         <div style="font-size:.72rem;color:var(--text-lt);margin-top:6px">※時間は1時間ごとに<span id="sum-pph">50</span>Pに換算。端数は時間のまま残す。1P=<span id="sum-ypp">4</span>円</div>
       </div></div>
@@ -635,7 +644,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
       <div class="toggle-body"><div class="toggle-inner"><div class="chart-wrap"><canvas id="chart-time" height="200"></canvas></div></div></div>
     </div>
     <div class="toggle">
-      <div class="toggle-hd"><span class="toggle-title">🌡️ 体温推移（月平均）</span><span class="toggle-icon">▼</span></div>
+      <div class="toggle-hd"><span class="toggle-title">🌡️ 体温推移（月別平均）</span><span class="toggle-icon">▼</span></div>
       <div class="toggle-body"><div class="toggle-inner"><div class="chart-wrap"><canvas id="chart-temp" height="200"></canvas></div></div></div>
     </div>
     <div class="toggle">
@@ -776,6 +785,21 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
       <div class="calc-saved-list" id="saved-yen"></div>
     </div>
 
+    <!-- 所持金換算 -->
+    <div class="calc-section">
+      <h3>💴 所持金 換算</h3>
+      <div class="calc-input-row">
+        <input type="number" class="calc-input wide" id="c-yen2" min="0" placeholder="0" inputmode="numeric">
+        <span class="calc-unit">円</span>
+        <button class="calc-btn" onclick="calcYen2()">換算</button>
+        <button class="calc-btn reset" onclick="resetCalc('yen2')">リセット</button>
+      </div>
+      <div class="calc-result" id="r-yen2">
+        <span style="color:var(--text-lt);font-size:.78rem">金額を入力してください</span>
+      </div>
+      <div class="calc-saved-list" id="saved-yen2"></div>
+    </div>
+
     <!-- レート表示 -->
     <div style="text-align:center;font-size:.75rem;color:var(--text-lt);padding:4px 0 8px">
       現在のレート：<span id="calc-rate-label">－</span>
@@ -800,6 +824,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
     <div class="form-row">
       <div class="fg"><label>ポイント</label><input type="number" id="m-pts" min="0" placeholder="0" inputmode="numeric"></div>
       <div class="fg"><label>時間（分）</label><input type="number" id="m-mins" min="0" placeholder="0" inputmode="numeric"></div>
+      <div class="fg"><label>所持金（円）</label><input type="number" id="m-money" placeholder="0" inputmode="numeric"></div>
     </div>
     <div class="fg">
       <label>内訳</label><input type="text" id="m-desc" placeholder="内容を入力">
@@ -826,8 +851,9 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
         <option value="other">その他</option>
       </select>
     </div>
-    <div class="fg"><label>使用ポイント</label><input type="number" id="ex-pts" min="1" placeholder="例: 50" inputmode="numeric"></div>
-    <div class="fg"><label>もらったもの</label><input type="text" id="ex-val" placeholder="例: 1時間 / 200円"></div>
+    <div class="fg"><label>使用ポイント</label><input type="number" id="ex-pts" min="0" placeholder="0" inputmode="numeric"></div>
+    <div class="fg"><label>所持金の増減（円）</label><input type="number" id="ex-money" placeholder="例: +500 / -200" inputmode="numeric"><div class="text-xs text-lt" style="margin-top:3px">プラスで所持金増加、マイナスで減少</div></div>
+    <div class="fg"><label>もらったもの / 使途</label><input type="text" id="ex-val" placeholder="例: 1時間 / お小遣い 500円"></div>
     <div class="fg"><label>メモ</label><input type="text" id="ex-desc" placeholder="例: マインクラフト1時間"></div>
     <button class="btn btn-primary w-full btn-lg" onclick="submitExchange()">交換を記録する</button>
   </div>
@@ -842,6 +868,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
     <div class="form-row">
       <div class="fg"><label>ポイント</label><input type="number" id="i-point" value="0" inputmode="numeric"></div>
       <div class="fg"><label>時間（分）</label><input type="number" id="i-time" value="0" inputmode="numeric"></div>
+      <div class="fg"><label>所持金（円）</label><input type="number" id="i-money" value="0" inputmode="numeric"></div>
     </div>
     <div class="fg">
       <div class="form-check"><input type="checkbox" id="i-daily"><label for="i-daily">1日1回制限</label></div>

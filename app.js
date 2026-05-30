@@ -279,11 +279,14 @@ function renderRateMemo() {
   const rows = [];
   items.forEach(item => {
     const bp = item.base_point|0, bt = item.base_time|0;
+    const bp = item.base_point|0, bt = item.base_time|0, bm = item.base_money|0;
     const parts = [];
     if (bp > 0) parts.push(`+${bp}P`);
     if (bp < 0) parts.push(`${bp}P`);
     if (bt > 0) parts.push(`+${fmtMin(bt)}`);
     if (bt < 0) parts.push(`${fmtMin(bt)}`);
+    if (bm > 0) parts.push(`+${bm.toLocaleString()}円`);
+    if (bm < 0) parts.push(`${bm.toLocaleString()}円`);
     const val = parts.join('・');
 
     const limits = [];
@@ -413,9 +416,11 @@ function renderHome() {
     const tt = Object.values(daily).reduce((s, d) => s + (d.total_time_minutes || 0), 0);
     const h = Math.floor(tt / 60), m = tt % 60;
     const ep = tp + h * pph;
-    setText(`${pfx}-time`, h > 0 ? (m > 0 ? `${h}h${m}m` : `${h}時間`) : `${m}分`);
-    setText(`${pfx}-pts`,  tp + 'P');
-    setText(`${pfx}-yen`,  (ep * ypp).toLocaleString() + '円');
+    const tm2 = Object.values(daily).reduce((s, d) => s + (d.total_money||0), 0);
+    setText(`${pfx}-time`,  h > 0 ? (m > 0 ? `${h}h${m}m` : `${h}時間`) : `${m}分`);
+    setText(`${pfx}-pts`,   tp + 'P');
+    setText(`${pfx}-yen`,   (ep * ypp).toLocaleString() + '円');
+    setText(`${pfx}-money`, tm2.toLocaleString() + '円');
   });
   renderWeekCal(1, 'cal-son',      calWeekOffset);
   renderWeekCal(2, 'cal-daughter', calWeekOffset);
@@ -494,7 +499,7 @@ function getDayData(ukey, date) {
   if (!appData.users[ukey]) appData.users[ukey] = { clothes_count:0, clothes_last_date:null, exchange_logs:{}, daily:{} };
   if (!appData.users[ukey].daily) appData.users[ukey].daily = {};
   if (!appData.users[ukey].daily[date]) {
-    appData.users[ukey].daily[date] = { total_points:0, total_time_minutes:0, item_states:{}, point_logs:{}, manual_logs:{} };
+    appData.users[ukey].daily[date] = { total_points:0, total_time_minutes:0, total_money:0, item_states:{}, point_logs:{}, manual_logs:{} };
   }
   return appData.users[ukey].daily[date];
 }
@@ -514,13 +519,17 @@ function renderDaily() {
   const daily = appData.users[ukey]?.daily || {};
   const pts   = day.total_points        || 0;
   const mins  = day.total_time_minutes  || 0;
+  const money = day.total_money         || 0;
   const cp    = Object.values(daily).reduce((s, d) => s + (d.total_points || 0), 0);
   const ct    = Object.values(daily).reduce((s, d) => s + (d.total_time_minutes || 0), 0);
+  const cm    = Object.values(daily).reduce((s, d) => s + (d.total_money || 0), 0);
 
-  setText('today-pts',  (pts >= 0 ? '+' : '') + pts + 'P');
-  setText('today-time', fmtMin(mins));
-  setText('cum-pts',    cp + 'P');
-  setText('cum-time',   fmtMin(ct));
+  setText('today-pts',   (pts   >= 0 ? '+' : '') + pts   + 'P');
+  setText('today-time',  fmtMin(mins));
+  setText('today-money', (money >= 0 ? '+' : '') + money.toLocaleString() + '円');
+  setText('cum-pts',     cp + 'P');
+  setText('cum-time',    fmtMin(ct));
+  setText('cum-money',   cm.toLocaleString() + '円');
   renderItems();
   renderLogs();
   renderDailyHealth();  // ← 毎回必ず呼ぶ
@@ -613,6 +622,7 @@ async function pressItem(itemId) {
 
   let add_p = item.base_point|0;
   let add_t = item.base_time|0;
+  let add_m = item.base_money|0;
   if (item.max_point_per_day != null && st.point_count >= item.max_point_per_day) add_p = 0;
   if (item.max_time_per_day  != null && st.time_count  >= item.max_time_per_day)  add_t = 0;
   if (add_p === 0 && add_t === 0 && (item.max_point_per_day != null || item.max_time_per_day != null)) {
@@ -630,9 +640,10 @@ async function pressItem(itemId) {
   // ── 1. ローカル appData を先に更新（オプティミスティック更新）──
   day.total_points       = (day.total_points||0)      + add_p;
   day.total_time_minutes = (day.total_time_minutes||0) + add_t;
+  day.total_money        = (day.total_money||0)        + add_m;
   day.item_states[sid]   = newSt;
   day.point_logs[logId]  = { id:logId, item_id:parseInt(itemId), item_name:item.name,
-                              points_added:add_p, time_added:add_t, timestamp:ts };
+                              points_added:add_p, time_added:add_t, money_added:add_m, timestamp:ts };
 
   // ── 2. 画面をすぐに更新 ──
   renderDaily();
@@ -688,8 +699,8 @@ function renderLogs() {
   const list = g('log-list');
   if (!list) return;
   const day = getDayData();
-  const pl  = Object.values(day.point_logs  || {}).map(l => ({ ...l, _t:'point',  pts:l.points_added|0, mins:l.time_added|0,    name:l.item_name||'' }));
-  const ml  = Object.values(day.manual_logs || {}).map(l => ({ ...l, _t:'manual', pts:l.points|0,       mins:l.time_minutes|0,  name:l.description||'' }));
+  const pl  = Object.values(day.point_logs  || {}).map(l => ({ ...l, _t:'point',  pts:l.points_added|0, mins:l.time_added|0,   mny:l.money_added|0,  name:l.item_name||'' }));
+  const ml  = Object.values(day.manual_logs || {}).map(l => ({ ...l, _t:'manual', pts:l.points|0,       mins:l.time_minutes|0, mny:l.money|0,        name:l.description||'' }));
   const all = [...pl, ...ml].sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
 
   list.innerHTML = '';
@@ -717,35 +728,36 @@ window.setDesc = function(chip) { g('m-desc').value = chip.textContent; };
 
 window.submitManual = async function() {
   const sign = g('sign-val').value || '+';
-  let pts    = parseInt(g('m-pts').value  || '0');
-  let mins   = parseInt(g('m-mins').value || '0');
+  let pts    = parseInt(g('m-pts').value   || '0');
+  let mins   = parseInt(g('m-mins').value  || '0');
+  let money  = parseInt(g('m-money').value || '0');
   const desc = g('m-desc').value.trim() || '手動追加';
-  if (pts === 0 && mins === 0) { toast('ポイントか時間を入力してください','ng'); return; }
-  if (sign === '-') { pts = -Math.abs(pts); mins = -Math.abs(mins); }
-  else              { pts =  Math.abs(pts); mins =  Math.abs(mins); }
+  if (pts === 0 && mins === 0 && money === 0) { toast('いずれかの値を入力してください','ng'); return; }
+  if (sign === '-') { pts = -Math.abs(pts); mins = -Math.abs(mins); money = -Math.abs(money); }
+  else              { pts =  Math.abs(pts); mins =  Math.abs(mins); money =  Math.abs(money); }
 
   const ukey  = dailyUser === 1 ? 'son' : 'daughter';
-  const day   = getDayData(ukey, dailyDate);
+  const date  = dailyDate;
+  const day   = getDayData(ukey, date);
   if (!day.manual_logs) day.manual_logs = {};
   const ts    = nowJST();
   const logId = 'ml_' + Date.now();
 
-  // 1. ローカル先行更新
   day.total_points       = (day.total_points||0)      + pts;
   day.total_time_minutes = (day.total_time_minutes||0) + mins;
-  day.manual_logs[logId] = { id:logId, points:pts, time_minutes:mins, description:desc, timestamp:ts };
+  day.total_money        = (day.total_money||0)        + money;
+  day.manual_logs[logId] = { id:logId, points:pts, time_minutes:mins, money, description:desc, timestamp:ts };
 
-  // 2. モーダルを閉じて画面更新
   closeModal('manual-modal');
-  ['m-pts','m-mins','m-desc'].forEach(id => { const el=g(id); if(el) el.value=''; });
+  ['m-pts','m-mins','m-money','m-desc'].forEach(id => { const el=g(id); if(el) el.value=''; });
   renderDaily();
   toast('追加しました ✓','ok');
 
-  // 3. Firebase書き込み（バックグラウンド）
-  const base = `users/${ukey}/daily/${dailyDate}`;
+  const base = `users/${ukey}/daily/${date}`;
   dbUpdate(base, {
     total_points:      day.total_points,
     total_time_minutes:day.total_time_minutes,
+    total_money:       day.total_money,
     [`manual_logs/${logId}`]: day.manual_logs[logId],
   }).catch(e => { console.error('submitManual Firebase error:', e); toast('保存エラー','ng'); });
 };
@@ -771,12 +783,14 @@ function renderSummary() {
   const daily= u.daily || {};
   const tp   = Object.values(daily).reduce((s, d) => s + (d.total_points||0), 0);
   const tt   = Object.values(daily).reduce((s, d) => s + (d.total_time_minutes||0), 0);
+  const tm   = Object.values(daily).reduce((s, d) => s + (d.total_money||0), 0);
   const h    = Math.floor(tt/60), m = tt%60;
   const ep   = tp + h * pph;
 
-  setText('sum-pts',  tp + 'P');
-  setText('sum-time', h>0?(m>0?`${h}h${m}m`:`${h}時間`):`${m}分`);
-  setText('sum-yen',  (ep * ypp).toLocaleString() + '円');
+  setText('sum-pts',   tp + 'P');
+  setText('sum-time',  h>0?(m>0?`${h}h${m}m`:`${h}時間`):`${m}分`);
+  setText('sum-yen',   (ep * ypp).toLocaleString() + '円');
+  setText('sum-money', tm.toLocaleString() + '円');
 
   const cnt = u.clothes_count || 0;
   setText('clothes-num', cnt + ' / 7日');
@@ -958,7 +972,11 @@ function renderSettingsItems() {
       item.max_point_per_day?`P最大${item.max_point_per_day}回`:'',
       item.max_time_per_day ?`時間最大${item.max_time_per_day}回`:'',
     ].filter(Boolean).join(' / ')||'制限なし';
-    const val = [(item.base_point?(item.base_point>0?'+':'')+item.base_point+'P':''), (item.base_time?(item.base_time>0?'+':'')+item.base_time+'分':'')].filter(Boolean).join(' ');
+    const val = [
+      (item.base_point?(item.base_point>0?'+':'')+item.base_point+'P':''),
+      (item.base_time ?(item.base_time >0?'+':'')+item.base_time +'分':''),
+      (item.base_money?(item.base_money>0?'+':'')+item.base_money.toLocaleString()+'円':''),
+    ].filter(Boolean).join(' ');
     const vis = [item.visible_son?'息子':'',item.visible_daughter?'娘':''].filter(Boolean).join('・');
     const row = document.createElement('div'); row.className='set-row';
     row.innerHTML=`<div class="rm"><div class="rn">${item.name} <span class="text-lt" style="font-size:.78rem;font-weight:400">${val}</span></div><div class="rs">${lim} ／ 表示：${vis||'なし'} ／ <span style="color:var(--primary);font-weight:700">順：${item.sort_order??'－'}</span></div></div><div class="ra"><button class="edit-btn" data-id="${item.id}">編集</button><button class="del-btn" data-id="${item.id}">削除</button></div>`;
@@ -1172,58 +1190,66 @@ function renderSummaryMonthLog(uid) {
 function renderTempGraph(uid) {
   const ukey  = uid === 1 ? 'son' : 'daughter';
   const daily = appData.users[ukey]?.daily || {};
-  // 日別データ（体温がある日のみ）
-  const entries = Object.entries(daily)
-    .filter(([, rec]) => rec.temperature)
-    .sort(([a],[b]) => a > b ? 1 : -1);
+
+  // 月ごとに集計
+  const monthly = {};
+  Object.entries(daily).forEach(([d, rec]) => {
+    if (!rec.temperature) return;
+    const ym = d.slice(0, 7);
+    if (!monthly[ym]) monthly[ym] = [];
+    monthly[ym].push(parseFloat(rec.temperature));
+  });
+  const labels = Object.keys(monthly).sort();
+  const avgs   = labels.map(ym => {
+    const arr = monthly[ym];
+    return Math.round(arr.reduce((s,v)=>s+v,0) / arr.length * 10) / 10;
+  });
 
   if (trCharts['chart-temp']) { trCharts['chart-temp'].destroy(); delete trCharts['chart-temp']; }
   const ctx = g('chart-temp');
   if (!ctx) return;
 
-  if (!entries.length) {
-    // すでに追加済みのemptyメッセージを避けるため親をチェック
-    if (!ctx.parentElement.querySelector('.empty')) {
-      ctx.style.display = 'none';
-      const msg = document.createElement('div');
-      msg.className = 'empty'; msg.textContent = '体温データがありません';
-      ctx.parentElement.appendChild(msg);
-    }
-    return;
-  }
+  // 既存のemptyメッセージを毎回クリア
+  ctx.parentElement.querySelectorAll('.empty').forEach(el => el.remove());
   ctx.style.display = '';
 
-  const labels = entries.map(([d]) => d.slice(5).replace('-','/'));
-  const temps  = entries.map(([, rec]) => rec.temperature);
-  const minT   = Math.floor(Math.min(...temps) * 2) / 2 - 0.5;
-  const maxT   = Math.ceil( Math.max(...temps) * 2) / 2 + 0.5;
+  if (!labels.length) {
+    ctx.style.display = 'none';
+    const msg = document.createElement('div');
+    msg.className = 'empty'; msg.textContent = '体温データがありません';
+    ctx.parentElement.appendChild(msg);
+    return;
+  }
+
+  const minT = Math.floor(Math.min(...avgs) * 2) / 2 - 0.3;
+  const maxT = Math.ceil( Math.max(...avgs) * 2) / 2 + 0.3;
 
   trCharts['chart-temp'] = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [{
-        label: '体温(℃)',
-        data: temps,
+        label: '体温月平均(℃)',
+        data: avgs,
         borderColor: '#e74c3c',
-        backgroundColor: 'rgba(231,76,60,.1)',
-        borderWidth: 2,
-        pointRadius: 5,
-        pointHoverRadius: 7,
+        backgroundColor: 'rgba(231,76,60,.08)',
+        borderWidth: 2.5,
+        pointRadius: 6,
+        pointHoverRadius: 8,
         tension: 0.3,
         fill: true,
       }]
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ctx.parsed.y + '℃' } }
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => c.parsed.y.toFixed(1) + '℃' } }
       },
       scales: {
-        x: { grid: { display: false },
-             ticks: { maxTicksLimit: 10, maxRotation: 45 } },
+        x: { grid: { display: false } },
         y: { min: minT, max: maxT, grid: { color: '#eee' },
-             ticks: { callback: v => v + '℃', stepSize: 0.5 } }
+             ticks: { callback: v => v.toFixed(1) + '℃', stepSize: 0.5 } }
       }
     }
   });
@@ -1447,7 +1473,7 @@ window.closeModal = id => g(id)?.classList.remove('open');
 ══════════════════════════════════════ */
 
 // 保存リスト（ページ内メモリ）
-const calcSaved = { time: [], pts: [], yen: [] };
+const calcSaved = { time: [], pts: [], yen: [], yen2: [] };
 
 function getCalcRates() {
   const s = appData.settings || {};
@@ -1588,6 +1614,34 @@ window.removeSaved = function(type, idx) {
   renderSavedList(type);
 };
 
+/* ── 所持金換算（calcYen の別バージョン：ポイント換算は逆引き） ── */
+window.calcYen2 = function() {
+  const yen = parseInt(g('c-yen2')?.value || '0');
+  if (!yen || yen <= 0) { toast('金額を入力してください','ng'); return; }
+  const { pph, ypp } = getCalcRates();
+  const pts    = Math.round(yen / ypp);
+  const minVal = Math.round(pts / pph * 60);
+  const hh     = Math.floor(minVal / 60);
+  const mm     = minVal % 60;
+  const rEl = g('r-yen2');
+  rEl.innerHTML = `
+    <div class="calc-result-row">
+      <span class="calc-result-label">ポイント換算</span>
+      <span class="calc-result-val pts">${pts} P</span>
+    </div>
+    <div class="calc-result-row">
+      <span class="calc-result-label">時間換算（分）</span>
+      <span class="calc-result-val time">${minVal} 分</span>
+    </div>
+    <div class="calc-result-row">
+      <span class="calc-result-label">時間表記</span>
+      <span class="calc-result-val time">${hh > 0 ? hh+'時間' : ''}${mm > 0 ? mm+'分' : (hh===0?'0分':'')}</span>
+    </div>
+    <div style="text-align:right;margin-top:4px">
+      <button class="calc-btn" style="font-size:.75rem;padding:5px 12px" onclick="saveCalc('yen2','${yen.toLocaleString()}円 = ${pts}P = ${minVal}分')">保存</button>
+    </div>`;
+};
+
 /* ── リセット ── */
 window.resetCalc = function(type) {
   if (type === 'time') {
@@ -1602,6 +1656,10 @@ window.resetCalc = function(type) {
     setVal('c-yen','');
     g('r-yen').innerHTML = '<span style="color:var(--text-lt);font-size:.78rem">金額を入力してください</span>';
     calcSaved.yen = []; renderSavedList('yen');
+  } else if (type === 'yen2') {
+    setVal('c-yen2','');
+    g('r-yen2').innerHTML = '<span style="color:var(--text-lt);font-size:.78rem">金額を入力してください</span>';
+    calcSaved.yen2 = []; renderSavedList('yen2');
   }
 };
 
@@ -1634,9 +1692,11 @@ g('log-list').addEventListener('click', e => {
         time_count:  Math.max(0, (st.time_count ||0) - (t !== 0 ? 1 : 0)),
       } : null;
 
+      const mm = log.money_added|0;
       // 1. ローカル先行更新
       day.total_points       = (day.total_points||0)      - p;
       day.total_time_minutes = (day.total_time_minutes||0) - t;
+      day.total_money        = (day.total_money||0)        - mm;
       delete day.point_logs[logId];
       if (newSt && newSt.press_count === 0) delete day.item_states[sid];
       else if (newSt) day.item_states[sid] = newSt;
@@ -1651,6 +1711,7 @@ g('log-list').addEventListener('click', e => {
         total_time_minutes:day.total_time_minutes,
         [`point_logs/${logId}`]: null,
       };
+      fbUpdates.total_money = day.total_money;
       if (newSt && newSt.press_count === 0) fbUpdates[`item_states/${sid}`] = null;
       else if (newSt) fbUpdates[`item_states/${sid}`] = newSt;
       dbUpdate(base, fbUpdates).catch(e => { console.error('delete log error:', e); toast('削除保存エラー','ng'); });
@@ -1662,6 +1723,7 @@ g('log-list').addEventListener('click', e => {
       // 1. ローカル先行更新
       day.total_points       = (day.total_points||0)      - (log.points||0);
       day.total_time_minutes = (day.total_time_minutes||0) - (log.time_minutes||0);
+      day.total_money        = (day.total_money||0)        - (log.money||0);
       delete day.manual_logs[logId];
 
       // 2. 画面更新
@@ -1672,6 +1734,7 @@ g('log-list').addEventListener('click', e => {
       dbUpdate(base, {
         total_points:      day.total_points,
         total_time_minutes:day.total_time_minutes,
+        total_money:       day.total_money,
         [`manual_logs/${logId}`]: null,
       }).catch(e => { console.error('delete manual error:', e); toast('削除保存エラー','ng'); });
     }
