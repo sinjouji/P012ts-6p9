@@ -90,6 +90,8 @@ function initFirebase() {
         g('login-screen').style.display = 'none';
         g('app-screen').style.display   = 'block';
         setSyncStatus('🟢 ' + user.email);
+        g('past-date').value = todayStr();
+        goView('home');
         setupRealtimeSync();
       } else {
         // 未ログイン → ログイン画面
@@ -1741,9 +1743,5 @@ g('log-list').addEventListener('click', e => {
   });
 });
 
-// 初期化
-g('past-date').value = todayStr();
-goView('home');
-
-// Firebase + Auth 起動
+// Firebase + Auth 起動（認証後に goView('home') が呼ばれる）
 initFirebase();
