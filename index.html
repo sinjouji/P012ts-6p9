@@ -413,7 +413,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
       <input type="password" id="login-pass" placeholder="パスワード" autocomplete="current-password">
     </div>
     <div class="login-error" id="login-error"></div>
-    <button class="btn btn-primary w-full btn-lg" id="login-btn" onclick="doLogin()">ログイン</button>
+    <button class="btn btn-primary w-full btn-lg" id="login-btn">ログイン</button>
   </div>
 </div>
 
@@ -931,14 +931,6 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-// ログインフォームでEnterキー対応
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') {
-    doLogin();
-  }
-});
-</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

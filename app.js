@@ -280,7 +280,6 @@ function renderRateMemo() {
   // 項目ごとの説明行を生成
   const rows = [];
   items.forEach(item => {
-    const bp = item.base_point|0, bt = item.base_time|0;
     const bp = item.base_point|0, bt = item.base_time|0, bm = item.base_money|0;
     const parts = [];
     if (bp > 0) parts.push(`+${bp}P`);
@@ -1742,6 +1741,15 @@ g('log-list').addEventListener('click', e => {
     }
   });
 });
+
+// ログインUIのイベントリスナー（module読み込み完了後に確実に登録）
+const loginBtn   = g('login-btn');
+const loginEmail = g('login-email');
+const loginPass  = g('login-pass');
+
+if (loginBtn)   loginBtn.addEventListener('click', window.doLogin);
+if (loginEmail) loginEmail.addEventListener('keydown', e => { if (e.key === 'Enter') window.doLogin(); });
+if (loginPass)  loginPass.addEventListener('keydown',  e => { if (e.key === 'Enter') window.doLogin(); });
 
 // Firebase + Auth 起動（認証後に goView('home') が呼ばれる）
 initFirebase();
