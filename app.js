@@ -68,11 +68,11 @@ let db = null;
    Firebase Console → プロジェクトの設定 → マイアプリ → SDKの設定と構成
 ══════════════════════════════════════ */
 const FIREBASE_CONFIG = {
-  apiKey:            'AIzaSyBbKlHBjsu9-qKpWVBBm4rFZinfJOek5Hc',
-  authDomain:        'mychls-p0intapp.firebaseapp.com',
-  databaseURL:       'https://mychls-p0intapp-default-rtdb.asia-southeast1.firebasedatabase.app',
-  projectId:         'mychls-p0intapp',
-  appId:             '1:229330961921:web:c2cb7f851d35828b4ee200',
+  apiKey:            'YOUR_API_KEY',
+  authDomain:        'YOUR_PROJECT_ID.firebaseapp.com',
+  databaseURL:       'https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com',
+  projectId:         'YOUR_PROJECT_ID',
+  appId:             'YOUR_APP_ID',
 };
 /* ▲▲▲ 書き換えここまで ▲▲▲ */
 
@@ -904,6 +904,7 @@ function renderTrends() {
   makeBar('chart-pts',  mo.map(r=>r.ym),  mo.map(r=>r.pts),  'ポイント',  '#d4622a');
   makeBar('chart-time', mo.map(r=>r.ym),  mo.map(r=>Math.round(r.mins/60*10)/10), '時間(h)', '#1a6fa8');
   makeBar('chart-year', yr.map(r=>r.yr),  yr.map(r=>r.pts),  '年間P',     '#2f6844');
+  renderTempGraph(trUser);
 
   const tb = g('mo-tbody');
   if (tb) {
