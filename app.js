@@ -72,7 +72,7 @@ const FIREBASE_CONFIG = {
 authDomain : mychls-p0intapp.firebaseapp.com,
 databaseURL : https://mychls-p0intapp-default-rtdb.asia-southeast1.firebasedatabase.app,
 projectId : mychls-p0intapp,
-appId : 1:229330961921:web:c2cb7f851d35828b4ee200
+appId : 1:229330961921:web:c2cb7f851d35828b4ee200,
 };
 /* ▲▲▲ 書き換えここまで ▲▲▲ */
 
