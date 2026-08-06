@@ -722,11 +722,14 @@ window.submitManual = async function() {
   const sign = g('sign-val').value || '+';
   let pts    = parseInt(g('m-pts').value   || '0');
   let mins   = parseInt(g('m-mins').value  || '0');
-  let money  = parseInt(g('m-money').value || '0');
+  // money は符号をそのまま受け取る（+/-テキスト入力対応）
+  const moneyRaw = (g('m-money').value || '').trim().replace(/[^0-9+-]/g, '');
+  let money = moneyRaw === '' ? 0 : parseInt(moneyRaw) || 0;
   const desc = g('m-desc').value.trim() || '手動追加';
   if (pts === 0 && mins === 0 && money === 0) { toast('いずれかの値を入力してください','ng'); return; }
-  if (sign === '-') { pts = -Math.abs(pts); mins = -Math.abs(mins); money = -Math.abs(money); }
-  else              { pts =  Math.abs(pts); mins =  Math.abs(mins); money =  Math.abs(money); }
+  // pts・mins は sign ボタンに従う、money は入力値の符号をそのまま使う
+  if (sign === '-') { pts = -Math.abs(pts); mins = -Math.abs(mins); }
+  else              { pts =  Math.abs(pts); mins =  Math.abs(mins); }
 
   const ukey  = dailyUser === 1 ? 'son' : 'daughter';
   const date  = dailyDate;
@@ -843,12 +846,15 @@ window.submitExchange = async function() {
   const u     = appData.users[ukey] || {};
   const daily = u.daily || {};
   const tp    = Object.values(daily).reduce((s, d) => s + (d.total_points||0), 0);
-  const pts   = parseInt(g('ex-pts')?.value   || '0');
-  const money = parseInt(g('ex-money')?.value || '0');
+  const pts = parseInt(g('ex-pts')?.value || '0');
+  // money は +3000 / -500 のような符号付き入力も受け付ける
+  const moneyRaw2 = (g('ex-money')?.value || '').trim().replace(/[^0-9+-]/g, '');
+  const money = moneyRaw2 === '' ? 0 : parseInt(moneyRaw2) || 0;
   const exType = g('ex-type').value;
 
   if (pts <= 0 && money === 0) { toast('ポイントか所持金の増減を入力してください','ng'); return; }
   if (pts > 0 && tp < pts)    { toast(`ポイント不足（残${tp}P）`,'ng'); return; }
+  // pts が 0 の場合はポイント減算しない
 
   const today = todayStr();
   const day   = getDayData(ukey, today);
