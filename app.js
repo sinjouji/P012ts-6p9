@@ -68,7 +68,7 @@ let db = null;
    Firebase Console → プロジェクトの設定 → マイアプリ → SDKの設定と構成
 ══════════════════════════════════════ */
 const FIREBASE_CONFIG = {
-  apiKey : 'AIzaSyBbKlHBjsu9-qKpWVBBm4rFZinfJOek5Hc',
+apiKey : 'AIzaSyBbKlHBjsu9-qKpWVBBm4rFZinfJOek5Hc',
 authDomain : 'mychls-p0intapp.firebaseapp.com',
 databaseURL : 'https://mychls-p0intapp-default-rtdb.asia-southeast1.firebasedatabase.app',
 projectId : 'mychls-p0intapp',
