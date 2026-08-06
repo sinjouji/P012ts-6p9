@@ -8,6 +8,7 @@ import { getDatabase, ref, set, update, remove, onValue }
 import {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { FIREBASE_CONFIG } from './firebase-config.js';
 
 /* ══════════════════════════════════════
    ユーティリティ（最初に定義）
@@ -63,18 +64,7 @@ const DEFAULT_DATA = {
 ══════════════════════════════════════ */
 let db = null;
 
-/* ══════════════════════════════════════
-   ▼▼▼ ここを自分の Firebase 設定値に書き換えてください ▼▼▼
-   Firebase Console → プロジェクトの設定 → マイアプリ → SDKの設定と構成
-══════════════════════════════════════ */
-const FIREBASE_CONFIG = {
-apiKey : 'AIzaSyBbKlHBjsu9-qKpWVBBm4rFZinfJOek5Hc',
-authDomain : 'mychls-p0intapp.firebaseapp.com',
-databaseURL : 'https://mychls-p0intapp-default-rtdb.asia-southeast1.firebasedatabase.app',
-projectId : 'mychls-p0intapp',
-appId : '1:229330961921:web:c2cb7f851d35828b4ee200',
-};
-/* ▲▲▲ 書き換えここまで ▲▲▲ */
+// Firebase設定は firebase-config.js で管理
 
 let auth = null;
 
@@ -711,8 +701,9 @@ function renderLogs() {
     li.className = 'log-item';
     const ph  = log.pts  !== 0 ? `<span class="${log.pts >0?'lp':'ln'}">${log.pts >0?'+'+log.pts+'P':log.pts+'P'}</span>` : '';
     const th  = log.mins !== 0 ? `<span class="${log.mins>0?'lt':'ln'}">${log.mins>0?'+':''}<b>${fmtMin(log.mins)}</b></span>` : '';
+    const mh  = log.mny  !== 0 ? `<span class="${log.mny >0?'lm':'ln'}">${log.mny >0?'+':''}<b>${(log.mny||0).toLocaleString()}円</b></span>` : '';
     const ts  = log.timestamp ? '＠' + log.timestamp.slice(0,16).replace('T',' ') : '';
-    li.innerHTML = `<span class="log-text">${[ph,th].filter(Boolean).join(' ')} ：${log.name}：<span class="text-xs text-lt">${ts}</span></span><button class="log-del" data-type="${log._t}" data-id="${log.id}">✕</button>`;
+    li.innerHTML = `<span class="log-text">${[ph,th,mh].filter(Boolean).join(' ')} ：${log.name}：<span class="text-xs text-lt">${ts}</span></span><button class="log-del" data-type="${log._t}" data-id="${log.id}">✕</button>`;
     list.appendChild(li);
   });
 }
@@ -852,22 +843,41 @@ window.submitExchange = async function() {
   const u     = appData.users[ukey] || {};
   const daily = u.daily || {};
   const tp    = Object.values(daily).reduce((s, d) => s + (d.total_points||0), 0);
-  const pts   = parseInt(g('ex-pts').value || '0');
-  if (pts <= 0) { toast('ポイント数を入力してください','ng'); return; }
-  if (tp < pts) { toast(`ポイント不足（残${tp}P）`,'ng'); return; }
+  const pts   = parseInt(g('ex-pts')?.value   || '0');
+  const money = parseInt(g('ex-money')?.value || '0');
+  const exType = g('ex-type').value;
+
+  if (pts <= 0 && money === 0) { toast('ポイントか所持金の増減を入力してください','ng'); return; }
+  if (pts > 0 && tp < pts)    { toast(`ポイント不足（残${tp}P）`,'ng'); return; }
 
   const today = todayStr();
-  const day   = daily[today] || { total_points:0 };
+  const day   = getDayData(ukey, today);
   const ts    = nowJST();
   const eid   = 'ex_' + Date.now();
 
-  await dbUpdate(`users/${ukey}/daily/${today}`, { total_points:(day.total_points||0)-pts });
+  // ローカル更新
+  const updates = {};
+  if (pts   > 0) {
+    day.total_points = (day.total_points||0) - pts;
+    updates.total_points = day.total_points;
+  }
+  if (money !== 0) {
+    day.total_money = (day.total_money||0) + money;
+    updates.total_money = day.total_money;
+  }
+  if (Object.keys(updates).length) {
+    dbUpdate(`users/${ukey}/daily/${today}`, updates)
+      .catch(e => console.error('exchange daily update error:', e));
+  }
+
   await dbUpdate(`users/${ukey}/exchange_logs/${eid}`, {
-    id:eid, type:g('ex-type').value, points_used:pts,
-    value_received:g('ex-val').value.trim(), description:g('ex-desc').value.trim(), timestamp:ts,
+    id:eid, type:exType, points_used:pts, money_delta:money,
+    value_received:g('ex-val')?.value.trim(), description:g('ex-desc')?.value.trim(), timestamp:ts,
   });
+
   closeModal('ex-modal');
-  ['ex-pts','ex-val','ex-desc'].forEach(id=>{const el=g(id);if(el)el.value='';});
+  ['ex-pts','ex-money','ex-val','ex-desc'].forEach(id=>{const el=g(id);if(el)el.value='';});
+  renderSummary();
   toast('交換を記録しました ✓','ok');
 };
 
