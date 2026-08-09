@@ -826,15 +826,34 @@ function renderExList(logs) {
   });
   list.querySelectorAll('[data-exid]').forEach(btn => {
     btn.addEventListener('click', () => {
-      confirmDlg('この交換記録を削除しますか？（ポイントは今日に返還）', async () => {
+      confirmDlg('この交換記録を削除しますか？\n増減したポイント・金額・時間をすべて元に戻します。', async () => {
         const ukey  = sumUser === 1 ? 'son' : 'daughter';
         const u     = appData.users[ukey] || {};
         const ex    = (u.exchange_logs||{})[btn.dataset.exid];
         if (!ex) return;
         const today = todayStr();
-        const day   = (u.daily||{})[today] || { total_points:0 };
-        await dbUpdate(`users/${ukey}/daily/${today}`, { total_points:(day.total_points||0)+(ex.points_used||0) });
+        const day   = getDayData(ukey, today);
+
+        // 交換時の増減をすべて逆に戻す
+        const updates = {};
+        if (ex.points_used) {
+          day.total_points = (day.total_points||0) + (ex.points_used||0);
+          updates.total_points = day.total_points;
+        }
+        if (ex.money_delta) {
+          day.total_money = (day.total_money||0) - (ex.money_delta||0);
+          updates.total_money = day.total_money;
+        }
+        if (ex.time_minutes) {
+          day.total_time_minutes = (day.total_time_minutes||0) - (ex.time_minutes||0);
+          updates.total_time_minutes = day.total_time_minutes;
+        }
+
+        if (Object.keys(updates).length) {
+          await dbUpdate(`users/${ukey}/daily/${today}`, updates);
+        }
         await dbRemove(`users/${ukey}/exchange_logs/${btn.dataset.exid}`);
+        renderSummary();
         toast('削除・返還しました','info');
       });
     });
