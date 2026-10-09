@@ -807,19 +807,54 @@ function renderExList(logs) {
   const list = g('ex-list');
   if (!list) return;
   if (!logs.length) { list.innerHTML='<div class="empty">交換履歴がありません</div>'; return; }
-  const typeMap = { time:'⏱時間', money:'💰お小遣い', item:'🎁アイテム', other:'その他' };
+
+  // ラベルマップ（新旧両フォーマット対応）
+  const typeLabel = { pts:'⭐ポイント', time:'⏱時間', money:'💴所持金' };
+  const oldTypeMap = { time:'⏱時間', money:'💰お小遣い', item:'🎁アイテム', other:'その他' };
+
   list.innerHTML = '';
   logs.forEach(l => {
     const d = document.createElement('div'); d.className = 'ex-item';
+
+    // 見出し：新フォーマットなら「〇から〇へ交換」、旧フォーマットなら旧ラベル
+    let heading = '';
+    if (l.from_type && l.to_type) {
+      const fromLabel = typeLabel[l.from_type] || l.from_type;
+      const toLabel   = typeLabel[l.to_type]   || l.to_type;
+      heading = `<span class="ex-type">${fromLabel} → ${toLabel}</span>`;
+    } else if (l.type) {
+      // 旧フォーマット
+      heading = `<span class="ex-type">${oldTypeMap[l.type] || l.type}</span>`;
+    }
+
+    // 変動値バッジ
+    const badges = [];
+    if (l.from_type && l.from_amount) {
+      const lbl = typeLabel[l.from_type] || '';
+      if (l.from_type === 'pts')   badges.push(`<span class="ex-pts">−${l.from_amount}P</span>`);
+      if (l.from_type === 'time')  badges.push(`<span style="color:var(--time);font-weight:700">−${fmtMin(l.from_amount)}</span>`);
+      if (l.from_type === 'money') badges.push(`<span style="color:var(--neg);font-weight:700">−${l.from_amount.toLocaleString()}円</span>`);
+    }
+    if (l.to_type && l.to_amount) {
+      if (l.to_type === 'pts')   badges.push(`<span style="color:var(--pts);font-weight:700">+${l.to_amount}P</span>`);
+      if (l.to_type === 'time')  badges.push(`<span style="color:var(--time);font-weight:700">+${fmtMin(l.to_amount)}</span>`);
+      if (l.to_type === 'money') badges.push(`<span style="color:var(--primary);font-weight:700">+${l.to_amount.toLocaleString()}円</span>`);
+    }
+    // 旧フォーマット互換
+    if (!l.from_type) {
+      if (l.points_used) badges.push(`<span class="ex-pts">−${l.points_used}P</span>`);
+      if (l.money_delta) badges.push(`<span style="color:var(--primary);font-weight:700">${l.money_delta>0?'+':''}${l.money_delta.toLocaleString()}円</span>`);
+    }
+
     d.innerHTML = `
-      <div>
-        <span class="ex-type">${typeMap[l.type]||l.type}</span>
-        <div style="font-weight:600">${l.description||'－'}</div>
+      <div style="flex:1;min-width:0">
+        ${heading}
+        <div style="font-weight:600;margin-top:2px">${l.description||'－'}</div>
         ${l.value_received?`<div class="text-xs text-lt">${l.value_received}</div>`:''}
         <div class="text-xs text-lt">${(l.timestamp||'').slice(0,16).replace('T',' ')}</div>
       </div>
-      <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:5px">
-        <span class="ex-pts">−${l.points_used}P</span>
+      <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        ${badges.join('')}
         <button class="del-btn" data-exid="${l.id}" style="font-size:.7rem;padding:3px 7px">削除</button>
       </div>`;
     list.appendChild(d);
