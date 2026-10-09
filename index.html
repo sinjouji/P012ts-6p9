@@ -301,6 +301,17 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
   .page-nav{border-bottom-color:var(--border)}
 }
 
+
+/* ══ 全方向交換ボタン ══ */
+.ex-from-btn,.ex-to-btn{
+  flex:1;padding:8px 6px;border:1.5px solid var(--border);border-radius:var(--r-sm);
+  background:var(--surface);font-size:.82rem;font-weight:700;cursor:pointer;
+  color:var(--text-lt);transition:all .15s;font-family:var(--font);
+}
+.ex-from-btn.active{background:#fff3ed;border-color:var(--pts);color:var(--pts)}
+.ex-to-btn.active{background:#e8f4fb;border-color:var(--time);color:var(--time)}
+.ex-from-btn:hover:not(.active){background:var(--surface2)}
+.ex-to-btn:hover:not(.active){background:var(--surface2)}
 /* ══ タグチップ ══ */
 .tag-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.72rem;font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:all .15s;user-select:none;-webkit-tap-highlight-color:transparent}
 .tag-chip.active{opacity:1}
@@ -610,7 +621,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
     <div class="toggle open">
       <div class="toggle-hd"><span class="toggle-title">🔄 ポイント交換</span><span class="toggle-icon">▼</span></div>
       <div class="toggle-body"><div class="toggle-inner">
-        <div style="margin-bottom:10px"><button class="btn btn-outline btn-sm" onclick="openModal('ex-modal')">＋ 交換を記録</button></div>
+        <div style="margin-bottom:10px"><button class="btn btn-outline btn-sm" onclick="openExModal()">＋ 交換を記録</button></div>
         <div class="ex-list" id="ex-list"></div>
       </div></div>
     </div>
@@ -843,18 +854,53 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
 <div class="modal-bg" id="ex-modal">
   <div class="modal-box">
     <div class="modal-hd"><h3>🔄 交換を記録</h3><button class="modal-close" onclick="closeModal('ex-modal')">✕</button></div>
-    <div class="fg"><label>交換タイプ</label>
-      <select id="ex-type">
-        <option value="time">⏱ 時間（ゲームなど）</option>
-        <option value="money">💰 お小遣い</option>
-        <option value="item">🎁 アイテム・商品</option>
-        <option value="other">その他</option>
-      </select>
+
+    <!-- 交換元 -->
+    <div class="card-label" style="margin-bottom:4px">交換元（使うもの）</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button class="ex-from-btn active" data-from="pts"   onclick="setExFrom('pts')"  >⭐ P</button>
+      <button class="ex-from-btn"        data-from="time"  onclick="setExFrom('time')" >⏱ 時間</button>
+      <button class="ex-from-btn"        data-from="money" onclick="setExFrom('money')">💴 円</button>
     </div>
-    <div class="fg"><label>使用ポイント</label><input type="number" id="ex-pts" min="0" placeholder="0" inputmode="numeric"></div>
-    <div class="fg"><label>所持金の増減（円）</label><input type="text" id="ex-money" placeholder="例: 500（増加）/ -300（減少）" inputmode="numeric"><div class="text-xs text-lt" style="margin-top:3px">プラスで所持金増加、マイナスで減少</div></div>
-    <div class="fg"><label>もらったもの / 使途</label><input type="text" id="ex-val" placeholder="例: 1時間 / お小遣い 500円"></div>
-    <div class="fg"><label>メモ</label><input type="text" id="ex-desc" placeholder="例: マインクラフト1時間"></div>
+    <div class="fg" id="ex-from-pts-wrap">
+      <label>使用ポイント</label>
+      <input type="number" id="ex-pts" min="0" placeholder="0" inputmode="numeric" oninput="calcExAuto()">
+    </div>
+    <div class="fg" id="ex-from-time-wrap" style="display:none">
+      <label>使用時間（分）</label>
+      <input type="number" id="ex-time-from" min="0" placeholder="0" inputmode="numeric" oninput="calcExAuto()">
+    </div>
+    <div class="fg" id="ex-from-money-wrap" style="display:none">
+      <label>使用金額（円）</label>
+      <input type="text" id="ex-money-from" placeholder="例: 500" inputmode="numeric" oninput="calcExAuto()">
+    </div>
+
+    <!-- 交換先 -->
+    <div class="card-label" style="margin-bottom:4px;margin-top:4px">交換先（もらうもの）</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button class="ex-to-btn"         data-to="pts"   onclick="setExTo('pts')"  >⭐ P</button>
+      <button class="ex-to-btn active"   data-to="time"  onclick="setExTo('time')" >⏱ 時間</button>
+      <button class="ex-to-btn"         data-to="money" onclick="setExTo('money')">💴 円</button>
+    </div>
+    <div class="fg" id="ex-to-pts-wrap" style="display:none">
+      <label>獲得ポイント</label>
+      <input type="number" id="ex-pts-to" min="0" placeholder="自動計算" inputmode="numeric">
+    </div>
+    <div class="fg" id="ex-to-time-wrap">
+      <label>獲得時間（分）</label>
+      <input type="number" id="ex-time-to" min="0" placeholder="自動計算" inputmode="numeric">
+    </div>
+    <div class="fg" id="ex-to-money-wrap" style="display:none">
+      <label>獲得金額（円）</label>
+      <input type="text" id="ex-money-to" placeholder="自動計算" inputmode="numeric">
+    </div>
+
+    <!-- メモ（使途とメモを統一） -->
+    <div class="fg">
+      <label>メモ（内容・使途など）</label>
+      <input type="text" id="ex-desc" placeholder="例: マインクラフト1時間、お小遣い500円">
+    </div>
+
     <button class="btn btn-primary w-full btn-lg" onclick="submitExchange()">交換を記録する</button>
   </div>
 </div>

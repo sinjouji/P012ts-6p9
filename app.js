@@ -836,17 +836,21 @@ function renderExList(logs) {
 
         // 交換時の増減をすべて逆に戻す
         const updates = {};
-        if (ex.points_used) {
-          day.total_points = (day.total_points||0) + (ex.points_used||0);
-          updates.total_points = day.total_points;
+        // 新フォーマット（from/to）対応、旧フォーマット（points_used/money_delta）も互換
+        if (ex.from_type && ex.from_amount) {
+          if (ex.from_type === 'pts')   { day.total_points        = (day.total_points||0)        + ex.from_amount; updates.total_points = day.total_points; }
+          if (ex.from_type === 'time')  { day.total_time_minutes  = (day.total_time_minutes||0)  + ex.from_amount; updates.total_time_minutes = day.total_time_minutes; }
+          if (ex.from_type === 'money') { day.total_money         = (day.total_money||0)         + ex.from_amount; updates.total_money = day.total_money; }
         }
-        if (ex.money_delta) {
-          day.total_money = (day.total_money||0) - (ex.money_delta||0);
-          updates.total_money = day.total_money;
+        if (ex.to_type && ex.to_amount) {
+          if (ex.to_type === 'pts')   { day.total_points        = (day.total_points||0)        - ex.to_amount; updates.total_points = day.total_points; }
+          if (ex.to_type === 'time')  { day.total_time_minutes  = (day.total_time_minutes||0)  - ex.to_amount; updates.total_time_minutes = day.total_time_minutes; }
+          if (ex.to_type === 'money') { day.total_money         = (day.total_money||0)         - ex.to_amount; updates.total_money = day.total_money; }
         }
-        if (ex.time_minutes) {
-          day.total_time_minutes = (day.total_time_minutes||0) - (ex.time_minutes||0);
-          updates.total_time_minutes = day.total_time_minutes;
+        // 旧フォーマット互換
+        if (!ex.from_type) {
+          if (ex.points_used) { day.total_points = (day.total_points||0) + (ex.points_used||0); updates.total_points = day.total_points; }
+          if (ex.money_delta) { day.total_money  = (day.total_money||0)  - (ex.money_delta||0); updates.total_money  = day.total_money;  }
         }
 
         if (Object.keys(updates).length) {
@@ -860,48 +864,145 @@ function renderExList(logs) {
   });
 }
 
+/* ══ 全方向交換 UI制御 ══ */
+let exFromType = 'pts';
+let exToType   = 'time';
+
+window.setExFrom = function(type) {
+  exFromType = type;
+  ['pts','time','money'].forEach(t => {
+    g(`ex-from-${t}-wrap`).style.display = t === type ? '' : 'none';
+    document.querySelector(`[data-from="${t}"]`)?.classList.toggle('active', t === type);
+  });
+  calcExAuto();
+};
+
+window.setExTo = function(type) {
+  exToType = type;
+  ['pts','time','money'].forEach(t => {
+    g(`ex-to-${t}-wrap`).style.display = t === type ? '' : 'none';
+    document.querySelector(`[data-to="${t}"]`)?.classList.toggle('active', t === type);
+  });
+  calcExAuto();
+};
+
+window.calcExAuto = function() {
+  const { pph, ypp } = getCalcRates();
+  // 交換元の値を取得
+  let fromVal = 0;
+  if (exFromType === 'pts')   fromVal = parseInt(g('ex-pts')?.value || '0') || 0;
+  if (exFromType === 'time')  fromVal = parseInt(g('ex-time-from')?.value || '0') || 0;
+  if (exFromType === 'money') fromVal = parseInt((g('ex-money-from')?.value||'').replace(/[^0-9+-]/g,'')) || 0;
+  if (!fromVal) return;
+
+  // 交換元 → ポイントに正規化
+  let pts = 0;
+  if (exFromType === 'pts')   pts = fromVal;
+  if (exFromType === 'time')  pts = Math.round(fromVal / 60 * pph);
+  if (exFromType === 'money') pts = Math.round(fromVal / ypp);
+
+  // ポイント → 交換先に変換
+  let toVal = 0;
+  if (exToType === 'pts')   toVal = pts;
+  if (exToType === 'time')  toVal = Math.round(pts / pph * 60);
+  if (exToType === 'money') toVal = pts * ypp;
+
+  if (exToType === 'pts'  ) setVal('ex-pts-to',    toVal);
+  if (exToType === 'time' ) setVal('ex-time-to',   toVal);
+  if (exToType === 'money') setVal('ex-money-to',  toVal);
+};
+
+window.openExModal = function() {
+  exFromType = 'pts'; exToType = 'time';
+  setExFrom('pts'); setExTo('time');
+  ['ex-pts','ex-time-from','ex-money-from','ex-pts-to','ex-time-to','ex-money-to','ex-desc']
+    .forEach(id => { const el=g(id); if(el) el.value=''; });
+  openModal('ex-modal');
+};
+
 window.submitExchange = async function() {
   const ukey  = sumUser === 1 ? 'son' : 'daughter';
   const u     = appData.users[ukey] || {};
   const daily = u.daily || {};
   const tp    = Object.values(daily).reduce((s, d) => s + (d.total_points||0), 0);
-  const pts = parseInt(g('ex-pts')?.value || '0');
-  // money は +3000 / -500 のような符号付き入力も受け付ける
-  const moneyRaw2 = (g('ex-money')?.value || '').trim().replace(/[^0-9+-]/g, '');
-  const money = moneyRaw2 === '' ? 0 : parseInt(moneyRaw2) || 0;
-  const exType = g('ex-type').value;
+  const tt    = Object.values(daily).reduce((s, d) => s + (d.total_time_minutes||0), 0);
+  const tm    = Object.values(daily).reduce((s, d) => s + (d.total_money||0), 0);
 
-  if (pts <= 0 && money === 0) { toast('ポイントか所持金の増減を入力してください','ng'); return; }
-  if (pts > 0 && tp < pts)    { toast(`ポイント不足（残${tp}P）`,'ng'); return; }
-  // pts が 0 の場合はポイント減算しない
+  // 交換元の値
+  let fromVal = 0;
+  if (exFromType === 'pts')   fromVal = parseInt(g('ex-pts')?.value || '0') || 0;
+  if (exFromType === 'time')  fromVal = parseInt(g('ex-time-from')?.value || '0') || 0;
+  if (exFromType === 'money') fromVal = parseInt((g('ex-money-from')?.value||'').replace(/[^0-9+-]/g,'')) || 0;
+
+  // 交換先の値（自動計算 or 手動入力）
+  let toVal = 0;
+  if (exToType === 'pts')   toVal = parseInt(g('ex-pts-to')?.value  || '0') || 0;
+  if (exToType === 'time')  toVal = parseInt(g('ex-time-to')?.value || '0') || 0;
+  if (exToType === 'money') toVal = parseInt((g('ex-money-to')?.value||'').replace(/[^0-9+-]/g,'')) || 0;
+
+  if (!fromVal && !toVal) { toast('交換元または交換先を入力してください','ng'); return; }
+
+  // 残高チェック
+  if (exFromType === 'pts'   && fromVal > tp) { toast(`ポイント不足（残${tp}P）`,'ng'); return; }
+  if (exFromType === 'time'  && fromVal > tt) { toast(`時間不足（残${fmtMin(tt)}）`,'ng'); return; }
+  if (exFromType === 'money' && fromVal > tm) { toast(`所持金不足（残${tm.toLocaleString()}円）`,'ng'); return; }
 
   const today = todayStr();
   const day   = getDayData(ukey, today);
   const ts    = nowJST();
   const eid   = 'ex_' + Date.now();
-
-  // ローカル更新
   const updates = {};
-  if (pts   > 0) {
-    day.total_points = (day.total_points||0) - pts;
+
+  // 交換元を減算
+  if (exFromType === 'pts' && fromVal) {
+    day.total_points = (day.total_points||0) - fromVal;
     updates.total_points = day.total_points;
   }
-  if (money !== 0) {
-    day.total_money = (day.total_money||0) + money;
+  if (exFromType === 'time' && fromVal) {
+    day.total_time_minutes = (day.total_time_minutes||0) - fromVal;
+    updates.total_time_minutes = day.total_time_minutes;
+  }
+  if (exFromType === 'money' && fromVal) {
+    day.total_money = (day.total_money||0) - fromVal;
     updates.total_money = day.total_money;
   }
+
+  // 交換先を加算
+  if (exToType === 'pts' && toVal) {
+    day.total_points = (day.total_points||0) + toVal;
+    updates.total_points = day.total_points;
+  }
+  if (exToType === 'time' && toVal) {
+    day.total_time_minutes = (day.total_time_minutes||0) + toVal;
+    updates.total_time_minutes = day.total_time_minutes;
+  }
+  if (exToType === 'money' && toVal) {
+    day.total_money = (day.total_money||0) + toVal;
+    updates.total_money = day.total_money;
+  }
+
   if (Object.keys(updates).length) {
     dbUpdate(`users/${ukey}/daily/${today}`, updates)
       .catch(e => console.error('exchange daily update error:', e));
   }
 
+  const desc = g('ex-desc')?.value.trim() || '';
   await dbUpdate(`users/${ukey}/exchange_logs/${eid}`, {
-    id:eid, type:exType, points_used:pts, money_delta:money,
-    value_received:g('ex-val')?.value.trim(), description:g('ex-desc')?.value.trim(), timestamp:ts,
+    id: eid,
+    from_type:   exFromType,
+    from_amount: fromVal,
+    to_type:     exToType,
+    to_amount:   toVal,
+    description: desc,
+    timestamp:   ts,
+    // 旧フォーマット互換
+    points_used: exFromType === 'pts'   ? fromVal : (exToType === 'pts'   ? -toVal : 0),
+    money_delta: exToType   === 'money' ? toVal   : (exFromType === 'money' ? -fromVal : 0),
   });
 
   closeModal('ex-modal');
-  ['ex-pts','ex-money','ex-val','ex-desc'].forEach(id=>{const el=g(id);if(el)el.value='';});
+  ['ex-pts','ex-time-from','ex-money-from','ex-pts-to','ex-time-to','ex-money-to','ex-desc']
+    .forEach(id => { const el=g(id); if(el) el.value=''; });
   renderSummary();
   toast('交換を記録しました ✓','ok');
 };
