@@ -578,9 +578,58 @@ function buildItemBtns(grid, items, states) {
   });
 }
 
-async function pressItem(itemId) {
+
+/* ══ ボーナスモーダル制御 ══ */
+function openBonusModal(item) {
+  g('bonus-modal-title').textContent = `⏱ ${item.name} のボーナス`;
+  // デフォルト値表示
+  const defWrap = g('bonus-default-vals');
+  defWrap.innerHTML = '';
+  const defs = [];
+  if (item.base_point) defs.push(`<span class="badge-p">${item.base_point>0?'+':''}${item.base_point}P</span>`);
+  if (item.base_time)  defs.push(`<span class="badge-t">${item.base_time>0?'+':''}${fmtMin(item.base_time)}</span>`);
+  if (item.base_money) defs.push(`<span style="color:var(--primary);font-weight:700">${item.base_money>0?'+':''}${item.base_money.toLocaleString()}円</span>`);
+  defWrap.innerHTML = defs.length ? defs.join(' ') : '<span class="text-lt">なし</span>';
+  setVal('bonus-mins', '');
+  g('bonus-preview').style.display = 'none';
+  openModal('bonus-modal');
+}
+
+window.updateBonusPreview = function() {
+  const v = parseInt(g('bonus-mins')?.value || '');
+  const prev = g('bonus-preview');
+  const text = g('bonus-preview-text');
+  if (isNaN(v) || v === 0) { prev.style.display='none'; return; }
+  prev.style.display = '';
+  text.textContent = `ボーナス: ${v>0?'+':''}${fmtMin(v)}`;
+  prev.style.background = v > 0 ? 'var(--time-bg)' : 'var(--neg-bg)';
+  text.style.color = v > 0 ? 'var(--time)' : 'var(--neg)';
+};
+
+window.submitBonus = async function(override) {
+  const bonusMins = override === 0 ? 0
+    : parseInt(g('bonus-mins')?.value || '0') || 0;
+  closeModal('bonus-modal');
+  if (pendingBonusItemId !== null) {
+    await pressItemWithBonus(pendingBonusItemId, bonusMins);
+    pendingBonusItemId = null;
+  }
+};
+
+async function pressItemWithBonus(itemId, bonusMins) {
+  await pressItem(itemId, bonusMins || 0);
+}
+
+async function pressItem(itemId, bonusMins = 0) {
   const item = (toArr(appData.items)).find(i => String(i.id) === String(itemId));
   if (!item) { console.warn('item not found:', itemId); return; }
+
+  // ボーナス入力あり → モーダルを出して中断
+  if (item.has_bonus) {
+    pendingBonusItemId = String(itemId);
+    openBonusModal(item);
+    return;
+  }
 
   const ukey = dailyUser === 1 ? 'son' : 'daughter';
   const sid  = String(itemId);
@@ -629,12 +678,16 @@ async function pressItem(itemId) {
   };
 
   // ── 1. ローカル appData を先に更新（オプティミスティック更新）──
+  const totalAddT = add_t + (bonusMins||0);  // デフォルト + ボーナス
   day.total_points       = (day.total_points||0)      + add_p;
-  day.total_time_minutes = (day.total_time_minutes||0) + add_t;
+  day.total_time_minutes = (day.total_time_minutes||0) + totalAddT;
   day.total_money        = (day.total_money||0)        + add_m;
   day.item_states[sid]   = newSt;
-  day.point_logs[logId]  = { id:logId, item_id:parseInt(itemId), item_name:item.name,
-                              points_added:add_p, time_added:add_t, money_added:add_m, timestamp:ts };
+  day.point_logs[logId]  = {
+    id:logId, item_id:parseInt(itemId), item_name:item.name,
+    points_added:add_p, time_added:add_t, bonus_time:(bonusMins||0),
+    money_added:add_m, timestamp:ts
+  };
 
   // ── 2. 画面をすぐに更新 ──
   renderDaily();
@@ -690,8 +743,8 @@ function renderLogs() {
   const list = g('log-list');
   if (!list) return;
   const day = getDayData();
-  const pl  = Object.values(day.point_logs  || {}).map(l => ({ ...l, _t:'point',  pts:l.points_added|0, mins:l.time_added|0,   mny:l.money_added|0,  name:l.item_name||'' }));
-  const ml  = Object.values(day.manual_logs || {}).map(l => ({ ...l, _t:'manual', pts:l.points|0,       mins:l.time_minutes|0, mny:l.money|0,        name:l.description||'' }));
+  const pl  = Object.values(day.point_logs  || {}).map(l => ({ ...l, _t:'point',  pts:l.points_added|0, mins:l.time_added|0,   bonus:l.bonus_time||0, mny:l.money_added|0,  name:l.item_name||'' }));
+  const ml  = Object.values(day.manual_logs || {}).map(l => ({ ...l, _t:'manual', pts:l.points|0,       mins:l.time_minutes|0, bonus:0,               mny:l.money|0,        name:l.description||'' }));
   const all = [...pl, ...ml].sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
 
   list.innerHTML = '';
@@ -701,9 +754,10 @@ function renderLogs() {
     li.className = 'log-item';
     const ph  = log.pts  !== 0 ? `<span class="${log.pts >0?'lp':'ln'}">${log.pts >0?'+'+log.pts+'P':log.pts+'P'}</span>` : '';
     const th  = log.mins !== 0 ? `<span class="${log.mins>0?'lt':'ln'}">${log.mins>0?'+':''}<b>${fmtMin(log.mins)}</b></span>` : '';
+    const bh  = log.bonus !== 0 ? `<span class="${log.bonus>0?'lt':'ln'}" style="font-size:.72rem"> ボーナス${log.bonus>0?'+':''}${fmtMin(log.bonus)}</span>` : '';
     const mh  = log.mny  !== 0 ? `<span class="${log.mny >0?'lm':'ln'}">${log.mny >0?'+':''}<b>${(log.mny||0).toLocaleString()}円</b></span>` : '';
     const ts  = log.timestamp ? '＠' + log.timestamp.slice(0,16).replace('T',' ') : '';
-    li.innerHTML = `<span class="log-text">${[ph,th,mh].filter(Boolean).join(' ')} ：${log.name}：<span class="text-xs text-lt">${ts}</span></span><button class="log-del" data-type="${log._t}" data-id="${log.id}">✕</button>`;
+    li.innerHTML = `<span class="log-text">${[ph,th,bh,mh].filter(Boolean).join(' ')} ：${log.name}：<span class="text-xs text-lt">${ts}</span></span><button class="log-del" data-type="${log._t}" data-id="${log.id}">✕</button>`;
     list.appendChild(li);
   });
 }
@@ -1179,6 +1233,7 @@ window.openItemModal = function(item) {
   setVal('i-time',     item?.base_time??0);
   setChk('i-daily',    !!item?.daily_limit);
   setChk('i-weekly',   !!item?.weekly_limit);
+  setChk('i-bonus',    !!item?.has_bonus);
   setVal('i-max',      item?.max_per_day??'');
   setVal('i-maxp',     item?.max_point_per_day??'');
   setVal('i-maxt',     item?.max_time_per_day??'');
@@ -1202,6 +1257,7 @@ window.submitItemForm = async function() {
     base_time:   parseInt(g('i-time').value)||0,
     daily_limit: g('i-daily').checked,
     weekly_limit:g('i-weekly').checked,
+    has_bonus:   g('i-bonus')?.checked ?? false,
     max_per_day:       nint('i-max'),
     max_point_per_day: nint('i-maxp'),
     max_time_per_day:  nint('i-maxt'),
@@ -1856,7 +1912,7 @@ g('log-list').addEventListener('click', e => {
     if (type === 'point') {
       const log = day.point_logs?.[logId];
       if (!log) return;
-      const p = log.points_added|0, t = log.time_added|0;
+      const p = log.points_added|0, t = (log.time_added|0) + (log.bonus_time||0);
       const sid = String(log.item_id || 0);
       const st  = day.item_states?.[sid];
       const newSt = st ? {

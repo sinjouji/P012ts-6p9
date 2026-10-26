@@ -941,6 +941,39 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;width:100%}
   </div>
 </div>
 
+<!-- ボーナス入力モーダル -->
+<div class="modal-bg" id="bonus-modal">
+  <div class="modal-box">
+    <div class="modal-hd">
+      <h3 id="bonus-modal-title">⏱ ボーナスを入力</h3>
+      <button class="modal-close" onclick="submitBonus(0)">スキップ</button>
+    </div>
+    <!-- デフォルト時間表 -->
+    <div id="bonus-default-info" style="background:var(--surface2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;font-size:.83rem;">
+      <div class="card-label" style="margin-bottom:4px">デフォルト加算</div>
+      <div id="bonus-default-vals" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+    </div>
+    <!-- ボーナス入力 -->
+    <div class="fg">
+      <label>追加ボーナス時間（分）<span class="text-xs text-lt"> マイナスで減算</span></label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="bonus-mins" placeholder="例: 15 または -10" inputmode="numeric"
+          class="calc-input" style="width:120px;font-size:1rem"
+          oninput="updateBonusPreview()">
+        <span class="calc-unit">分</span>
+      </div>
+    </div>
+    <!-- プレビュー -->
+    <div id="bonus-preview" style="background:var(--pts-bg);border-radius:var(--r-sm);padding:8px 12px;margin-bottom:14px;font-size:.85rem;display:none">
+      <span id="bonus-preview-text"></span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline w-full" onclick="submitBonus(0)">ボーナスなし</button>
+      <button class="btn btn-primary w-full" onclick="submitBonus(null)">記録する</button>
+    </div>
+  </div>
+</div>
+
 <!-- タグ編集モーダル -->
 <div class="modal-bg" id="tag-modal">
   <div class="modal-box">
