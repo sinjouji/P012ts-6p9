@@ -606,6 +606,8 @@ window.updateBonusPreview = function() {
   text.style.color = v > 0 ? 'var(--time)' : 'var(--neg)';
 };
 
+let pendingBonusItemId = null;
+
 window.submitBonus = async function(override) {
   const bonusMins = override === 0 ? 0
     : parseInt(g('bonus-mins')?.value || '0') || 0;
