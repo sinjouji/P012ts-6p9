@@ -625,7 +625,8 @@ async function pressItem(itemId, bonusMins = 0) {
   if (!item) { console.warn('item not found:', itemId); return; }
 
   // ボーナス入力あり → モーダルを出して中断
-  if (item.has_bonus) {
+  console.log('[pressItem] item:', item.name, 'has_bonus:', item.has_bonus, typeof item.has_bonus);
+  if (item.has_bonus === true || item.has_bonus === 'true' || item.has_bonus === 1) {
     pendingBonusItemId = String(itemId);
     openBonusModal(item);
     return;
@@ -1233,7 +1234,7 @@ window.openItemModal = function(item) {
   setVal('i-time',     item?.base_time??0);
   setChk('i-daily',    !!item?.daily_limit);
   setChk('i-weekly',   !!item?.weekly_limit);
-  setChk('i-bonus',    !!item?.has_bonus);
+  const bonusEl = g('i-bonus'); if (bonusEl) bonusEl.checked = !!item?.has_bonus;
   setVal('i-max',      item?.max_per_day??'');
   setVal('i-maxp',     item?.max_point_per_day??'');
   setVal('i-maxt',     item?.max_time_per_day??'');
@@ -1257,7 +1258,7 @@ window.submitItemForm = async function() {
     base_time:   parseInt(g('i-time').value)||0,
     daily_limit: g('i-daily').checked,
     weekly_limit:g('i-weekly').checked,
-    has_bonus:   g('i-bonus')?.checked ?? false,
+    has_bonus:   !!(g('i-bonus') && g('i-bonus').checked),
     max_per_day:       nint('i-max'),
     max_point_per_day: nint('i-maxp'),
     max_time_per_day:  nint('i-maxt'),
