@@ -592,7 +592,7 @@ function openBonusModal(item) {
   defWrap.innerHTML = defs.length ? defs.join(' ') : '<span class="text-lt">なし</span>';
   setVal('bonus-mins', '');
   g('bonus-preview').style.display = 'none';
-  openModal('bonus-modal');
+  g('bonus-modal')?.classList.add('open');
 }
 
 window.updateBonusPreview = function() {
@@ -609,7 +609,7 @@ window.updateBonusPreview = function() {
 window.submitBonus = async function(override) {
   const bonusMins = override === 0 ? 0
     : parseInt(g('bonus-mins')?.value || '0') || 0;
-  closeModal('bonus-modal');
+  g('bonus-modal')?.classList.remove('open');
   if (pendingBonusItemId !== null) {
     await pressItemWithBonus(pendingBonusItemId, bonusMins);
     pendingBonusItemId = null;
