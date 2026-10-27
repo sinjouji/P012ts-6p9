@@ -619,16 +619,16 @@ window.submitBonus = async function(override) {
 };
 
 async function pressItemWithBonus(itemId, bonusMins) {
-  await pressItem(itemId, bonusMins || 0);
+  await pressItem(itemId, bonusMins || 0, true);  // _skipBonus=true でモーダル再表示を防ぐ
 }
 
-async function pressItem(itemId, bonusMins = 0) {
+async function pressItem(itemId, bonusMins = 0, _skipBonus = false) {
   const item = (toArr(appData.items)).find(i => String(i.id) === String(itemId));
   if (!item) { console.warn('item not found:', itemId); return; }
 
   // ボーナス入力あり → モーダルを出して中断
-  console.log('[pressItem] item:', item.name, 'has_bonus:', item.has_bonus, typeof item.has_bonus);
-  if (item.has_bonus === true || item.has_bonus === 'true' || item.has_bonus === 1) {
+  console.log('[pressItem] item:', item.name, 'has_bonus:', item.has_bonus, 'bonusMins:', bonusMins, 'skip:', _skipBonus);
+  if (!_skipBonus && (item.has_bonus === true || item.has_bonus === 'true' || item.has_bonus === 1)) {
     pendingBonusItemId = String(itemId);
     openBonusModal(item);
     return;
